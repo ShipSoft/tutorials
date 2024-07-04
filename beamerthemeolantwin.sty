@@ -1,0 +1,121 @@
+%    vim: ft=tex
+\usebeamertemplate{default}
+
+\RequirePackage{etex}
+\RequirePackage{wrapfig}
+\RequirePackage{mathtools}
+\RequirePackage{slashed}
+\RequirePackage{siunitx}
+\sisetup{detect-all}
+\RequirePackage{wasysym}
+\RequirePackage{framed}
+\RequirePackage{tikz}
+\usetikzlibrary{calc}
+\usetikzlibrary{backgrounds}
+\RequirePackage{tikz-feynman}
+\RequirePackage[absolute,overlay]{textpos}
+\RequirePackage{todonotes}
+\RequirePackage{varwidth}
+\RequirePackage{amsmath}
+\RequirePackage{upquote}
+
+\RequirePackage{xcolor}
+\definecolor{code}{RGB}{0,100,0}
+\definecolor{junglegreen}{rgb}{0.16, 0.67, 0.53}
+\definecolor{bleufonce}{RGB}{65,105,225}
+\definecolor{bleu}{RGB}{209,232,255}
+\definecolor{bleuleger}{RGB}{208,218,247}
+\definecolor{vert}{RGB}{96,189,99}
+\definecolor{vertfonce}{RGB}{61,147,64}
+\definecolor{vertleger}{RGB}{183,225,184}
+\definecolor{purple}{RGB}{138, 43, 226}
+\definecolor{lightgray}{gray}{0.5}
+
+\usetheme[sectionpage=none, progressbar=none]{metropolis}
+
+\RequirePackage{hyperref}
+\hypersetup{
+  bookmarks=true,         % show bookmarks bar?
+  pdftoolbar=true,        % show Acrobat’s toolbar?
+  pdfmenubar=true,        % show Acrobat’s menu?
+  pdffitwindow=false,     % window fit to page when opened
+  colorlinks=true,       % false: boxed links; true: colored links
+  linkcolor=black,        % color of internal links
+  citecolor=magenta,        % color of links to bibliography
+  filecolor=magenta,      % color of file links
+  urlcolor=magenta,          % color of external links
+}
+
+\RequirePackage{upgreek}
+
+\setbeamercolor{palette primary}{fg=black, bg=white}
+\setbeamercolor{normal text}{bg=white}
+\setbeamercolor{alerted text}{fg=magenta}
+\defbeamertemplate{itemize item}{yandex}{\char"203A}
+\defbeamertemplate{itemize subitem}{yandex}{\char"203A}
+\defbeamertemplate{itemize subsubitem}{yandex}{\char"203A}
+\setbeamertemplate{itemize item}[yandex]
+\setbeamertemplate{itemize subitem}[yandex]
+\setbeamertemplate{itemize subsubitem}[yandex]
+
+% use alert instead of emph
+\setbeamercolor{emph}{fg=magenta}
+\mode<presentation>{\let\emph\alert}
+
+\RequirePackage{caption}
+\captionsetup[figure]{labelformat=empty}
+
+\setbeamertemplate{title page}
+{
+  % \tikz [remember picture,overlay]
+  % \node[anchor=north, inner sep=0] at ([yshift=-2cm]current page.north)
+  % % {\includegraphics[width=\paperwidth, clip, trim=0 7.5cm 0 15cm]{boston-tea-party-loc.jpg}};
+  % {\includegraphics[width=\paperwidth, clip, trim=0 7.5cm 0 15cm]{USS_Constitution_Boston_2005.jpg}};
+  \tikz [remember picture,overlay]
+  \node[anchor=north east] at ([yshift=4.5cm]current page.east)
+  {\includegraphics[height=.2\textheight]{./SHiP-Full_Black.pdf}};
+  \tikz [remember picture,overlay]
+  \node[anchor=north west] at ([yshift=4.5cm]current page.west)
+  {\includegraphics[height=.2\textheight]{1_NAPOLI_LOGO_SIGLA.png}};
+  \vfill
+  \Huge{\structure{ \inserttitle }}\\
+  \vspace*{0.5em}
+  \ifx\insertsubtitle\@empty\else
+  \Large{\structure{ \insertsubtitle }}\\
+  \vspace*{0.5em}
+  \fi
+  \large{ \insertauthor }\ifonbehalf\ \textit{\small on behalf of \onbehalf.}\fi
+  \hfill
+  \scriptsize{[\href{mailto:oliver.lantwin@cern.ch}{\texttt{oliver.lantwin@cern.ch}}]}\\\vspace*{0.5em}
+  \footnotesize{ \insertdate }\\
+  \vspace*{-2cm}
+}
+
+\setbeamertemplate{frame footer}{\insertshortauthor~(\insertshortinstitute)\hfill\insertshortdate}
+\setbeamercolor{frametitle}{bg=white}
+
+\setbeamertemplate{frametitle}{%
+  \nointerlineskip%
+  \begin{beamercolorbox}[%
+      wd=\paperwidth,%
+      sep=0pt,%
+      leftskip=\metropolis@frametitle@padding,%
+      rightskip=\metropolis@frametitle@padding,%
+    ]{frametitle}%
+  \metropolis@frametitlestrut@start%
+  \insertframetitle%
+  \nolinebreak%
+  \metropolis@frametitlestrut@end%
+  \\
+  \vspace*{-0.9cm}
+  \hfill
+  \resizebox{!}{0.8cm}{
+  \includegraphics[]{SHiP-Symbol_Black.png}
+  }
+  \hspace{-0.5cm}
+  \vspace*{0.1cm}
+  \end{beamercolorbox}%
+}
+
+\newcommand{\tikznode}[3]{\tikz[baseline=-0.5ex]\node[coordinate,#2] (#1) {#3};}
+% \tikzstyle{every picture}+=[remember picture]

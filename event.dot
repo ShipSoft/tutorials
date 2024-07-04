@@ -1,0 +1,14 @@
+digraph "event" {
+    graph [rankdir=LR]
+    node [shape=plaintext]
+    edge [arrowhead=vee, arrowarrowsize=1]
+    proton
+    "D_s+"
+    N2
+    "pi+"
+    "mu-"
+    proton -> "D_s+"
+    "D_s+" -> N2
+    N2 -> "pi+"
+    N2 -> "mu-"
+}

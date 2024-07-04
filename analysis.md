@@ -1,0 +1,412 @@
+---
+title: Analysis tutorial
+author: Oliver Lantwin
+short-author: O. Lantwin
+institute: INFN Napoli
+short-institute: INFN Napoli
+date: 2024-07-04
+aspectratio: 169
+theme: olantwin
+colorlinks: true
+ship: true
+csquotes: true
+---
+
+## Prologue
+
+Based on the old analysis tutorial by E. Graverini, T. Ruf, A. Buonaura and A. Baranov.
+
+The latest version of this tutorial can be found on Github: [slides](), [pdf]()
+
+Please report issues with this tutorial on Github so that they can be fixed.
+
+## Introduction {.allowframebreaks}
+
+For this tutorial we are going to generate, reconstruct and analyse an ntuple of HNLs decaying to $\mu\pi$.
+
+The python script `run_simScript.py` has several options (check it's `--help` message).
+
+It can be used to
+
+- generate HNLs,
+- muon background,
+- neutrino background, and each one of these use cases can be customized with further options.
+
+\framebreak
+
+For now we will just generate a sample of 100 $N\to \pi\mu$ events:
+
+`python $FAIRSHIP/macro/run_simScript.py -n 100`
+
+Now let’s run the reconstruction:
+
+`python $FAIRSHIP/macro/ShipReco.py -f ship.conical.Pythia8-TGeant4.root -g geofile_full.conical.Pythia8-TGeant4.root`
+
+Now let us open the output reconstructed file in PyROOT and see what’s inside.
+
+We will perform a simple interactive analysis of the reconstructed tree using `ipython`, but a jupyter notebook or the basic `python` REPL work well.
+
+## Opening the file
+
+```python
+> import ROOT as r
+> f = r.TFile.Open('ship.conical.Pythia8-TGeant4_rec.root', 'read')
+> f.ls()
+```
+
+```
+TFile**		ship.conical.Pythia8-TGeant4_rec.root	
+ TFile*		ship.conical.Pythia8-TGeant4_rec.root	
+  KEY: TFolder	cbmroot;1	Main Folder
+  KEY: TList	BranchList;1	Doubly linked list
+  KEY: TList	TimeBasedBranchList;1	Doubly linked list
+  KEY: FairFileHeader	FileHeader;1	
+  KEY: TTree	cbmsim;2	/cbmroot_0 [current cycle]
+  KEY: TTree	cbmsim;1	/cbmroot_0 [backup cycle]
+
+```
+
+## Accessing the simulation tree
+
+```python
+> tree = f.cbmsim
+> tree.Print()
+```
+
+```
+******************************************************************************
+*Tree    :cbmsim    : /cbmroot_0                                             *
+*Entries :      100 : Total =         4489865 bytes  File  Size =    1774112 *
+*        :          : Tree compression factor =   2.47                       *
+******************************************************************************
+*Br    0 :MCTrack   : Int_t cbmroot_0.Stack.MCTrack_                         *
+*Entries :      100 : Total  Size=      11475 bytes  File Size  =        464 *
+*Baskets :        1 : Basket Size=      32000 bytes  Compression=   1.91     *
+*............................................................................*
+[...]
+```
+
+## Exploring the tree interactively
+
+::: columns
+
+::: {.column width=0.3}
+
+```python
+> r.TBrowser()
+```
+
+Tip: Also available as `rootbrowse` executable
+
+:::
+
+::: {.column width=0.7}
+
+![](tbrowser.png)
+
+:::
+
+:::
+
+## Looking at MC tracks
+
+MCTracks are the basic objects representing the simulated particles
+
+```python
+> tree.GetEntry(1)
+> tracks = tree.MCTrack
+> tracks[0]
+```
+
+```
+<cppyy.gbl.ShipMCTrack object at 0x5654818f6870>
+```
+
+As usual, `help` and `dir` are useful tools to explore the classes methods. Have a look at what you can do with an ShipMCTrack!
+
+## Identifying tracks {.allowframebreaks}
+
+The ROOT PDG database allows quick identification of particles based on their [PDG code](https://pdg.lbl.gov/2024/reviews/rpp2024-rev-monte-carlo-numbering.pdf)/name
+
+```python
+> pdg = r.TDatabasePDG.Instance()
+> for track in tracks:
+      print(track.GetPdgCode())
+2212
+431
+9900015
+211
+13
+11
+[...]
+```
+
+The guy with the funny number above is an HNL.
+By default, ROOT PDG database does not know about HNL. But FairShip has a function to add it.
+
+```python
+> import pythia8_conf
+> pythia8_conf.addHNLtoROOT()
+```
+
+Let's define something useful to avoid repeating ourselves:
+
+```python
+> def particle_name(track):
+      return pdg.GetParticle(track.GetPdgCode()).GetName()
+```
+
+\framebreak
+
+```python
+> for track in tracks:
+      print(particle_name(track))
+proton
+D_s+
+N2
+pi+
+mu-
+e-
+[...]
+```
+
+## Understanding the event
+
+Every ShipMCTrack contains information about its origin:
+
+```python
+> for i, track in enumerate(tracks):
+      print(i, particle_name(track), track.GetMotherId())
+0 proton -1
+1 D_s+ 0
+2 N2 1
+3 pi+ 2
+4 mu- 2
+5 e- 4
+[...]
+```
+
+```{=latex}
+\tikz [overlay]
+\node[anchor=north east] at ([xshift=-2cm]current page.east)
+{\includegraphics[height=0.5\textheight]{event.pdf}};
+```
+
+<!-- ## Family tree -->
+
+<!-- ```python -->
+<!-- > for i, track in enumerate(tracks): -->
+<!--       if i > 0: -->
+<!--           print(i, particle_name(track), 'daughter of', particle_name(tracks[track.GetMotherId()])) -->
+<!-- 1 D_s+ daughter of proton -->
+<!-- 2 N2 daughter of D_s+ -->
+<!-- 3 pi+ daughter of N2 -->
+<!-- 4 mu- daughter of N2 -->
+<!-- 5 e- daughter of mu- -->
+<!-- ``` -->
+
+## Understanding the geometry file
+
+Let's open the geometry file.
+This file is generated by `run_simScript.py` along with the data file.
+It is unique to your production. Please always refer to the same geometry you use
+to generate your file, when analysing it.
+
+```python
+> geo = r.TFile.Open('geofile_full.conical.Pythia8-TGeant4.root', 'read')
+> geo_manager = geo.FAIRGeom
+> geo_manager = r.gGeoManager  # alternative way
+> geo.ls()
+TFile**		geofile_full.conical.Pythia8-TGeant4.root
+ TFile*		geofile_full.conical.Pythia8-TGeant4.root	
+  KEY: TGeoManager	FAIRGeom;1	FAIR geometry
+  KEY: TObjString	ShipGeo;1	Collectable string class
+```
+
+## Finding the origin of our tracks
+
+`TGeoManager::FindNode` is a useful method: It takes $x, y, z$ coordinates and tells you
+to what geometry node they correspond.
+For example, see where these particles originate.
+
+```python
+> for track in tracks:
+      print(geo_manager.FindNode(
+          track.GetStartX(), track.GetStartY(), track.GetStartZ()
+      ).GetName())
+Target_1_1
+Target_1_1
+Target_1_1
+DecayVacuum_block1_0
+DecayVacuum_block1_0
+Cavern_1
+[...]
+```
+
+## Exploring the geometry
+
+```python
+> top = geo_manager.GetTopVolume()
+> nodes = top.GetNodes()
+> for node in nodes:
+      print(node.GetName())
+TargetArea_1
+Cavern_1
+MuonShieldArea_1
+SHiPMagnet_1
+DecayVolume_1
+MagVolume_1
+tTauNuDet_1
+Tr1_1
+[...]
+```
+
+## Looking at a subsystem in more detail
+
+Let us find the z coordinate of the decay volume
+
+```python
+> decay_volume = top.GetNode('DecayVolume_1')
+> decay_volume.GetMatrix()
+<cppyy.gbl.TGeoTranslation object at 0x555c630e5030>
+> from shipunit import cm
+> decay_volume.GetMatrix().GetTranslation()[2] / cm
+-2481.0
+```
+
+* `GEANT4` and `TGeo` use \si{\centi\metre} as default length unit
+* What this $z$ coordinate signifies depends on the subsystem (experiment with different systems!)
+* The `getGeoInformation.py` tool is also very useful for understanding the geometry (try it!)
+
+## Nodes vs. Volumes
+
+Nodes are volumes in the geometry tree. Let's look at the UBT node and its volume:
+
+```python
+> ubt = top.GetNode('Upstream_Tagger_1')
+> ubt_z = ubt.GetMatrix().GetTranslation()[2] / cm  # -2497.0
+> ubt_dz = ubt.GetVolume().GetShape().GetDZ() / cm  # 8.5012 (half-length)
+> ubt_z_end = ubt_z + ubt_dz
+```
+
+And for the first tracking station:
+
+```python
+> tr1 = top.GetNode('Tr1_1')
+> tr1_z_start = (tr1.GetMatrix().GetTranslation()[2] - 
+    tr1.GetVolume().GetShape().GetDZ()) / cm
+```
+
+## Reconstructed particles
+
+Reconstructed particles are saved in the `Particles` branch (as `ShipParticle`)
+
+```python
+> tree.Particles[0]
+<cppyy.gbl.ShipParticle object at 0x558a7d2a86f0>
+```
+
+Have a look what methods are available for `ShipParticles`!
+
+NB: This branch may be empty in some events!
+
+```python
+> for i, event in enumerate(tree): 
+       print(i, len(event.Particles))
+0 0
+1 1
+2 0
+[...]
+```
+
+## A simple analysis
+
+Let us look at the reconstructed vertices:
+
+```python
+> for event in tree: 
+      for candidate in event.Particles: 
+          vtx = r.TLorentzVector() 
+          candidate.ProductionVertex(vtx) 
+          print('vertex:', vtx.X(), vtx.Y(), vtx.Z(), vtx.T())
+vertex: -49.264756706722345 -88.02536880120692 -1313.5768318662156 0.0
+vertex: -102.67749138341733 -138.65193841223035 1959.5814731189923 0.0
+vertex: -3.064717476903692 143.68577636840655 1833.386507383547 0.0
+[...]
+```
+
+You could also have a look at e.g. the reconstructed momentum and DOCA (distance of closest approach) using the provided methods.
+
+## Using the geometry config
+
+In addition to the `TGeo` geometry, a copy of the config used to generate the geometry is saved in the geofile.
+
+```python
+> from rootpyPickler import Unpickler 
+> unpickler = Unpickler(geo)
+> geo_config = unpickler.load('ShipGeo')
+> print(geo_config.target.z0)
+-5886.5
+```
+
+This config contains a lot of useful information. We can use the target position to implement the impact parameter for our analysis.
+
+## Impact parameter
+
+Implement the impact parameter relative to the target
+
+```python
+> import numpy as np
+> from numpy.linalg import norm
+
+> def impact_parameter(vertex, momentum):
+      vertex = np.array([vertex.X(), vertex.Y(), vertex.Z()])
+      momentum = np.array([momentum.X(), momentum.Y(), momentum.Z()])
+      target = np.array([0, 0, geo_config.target.z0])
+      return norm(np.cross(target - vertex, momentum)) / norm(momentum)
+```
+
+NP: Don't implement these things yourself, try to use the implementations from SHiP software where available, and help fill in the gaps!
+ <!-- TK benchmark different implementations! -->
+
+## Putting things together
+
+```python
+> for event in tree:
+      for candidate in event.Particles:
+          vtx = r.TLorentzVector()
+          candidate.ProductionVertex(vtx)
+          print('DOCA:', candidate.GetDoca())
+          mom = r.TLorentzVector()
+          candidate.Momentum(mom)
+          print('IP:', impact_parameter(vtx, mom))
+doca: 112.1899990968525
+IP: 126.8368321009212
+[...]
+```
+
+<!-- ## Fiducial volume -->
+
+<!-- TK look at implementation in ShipAna -->
+
+<!-- ## Weights -->
+
+<!-- To account for the lifetime of HNL, weights are used -->
+
+##
+
+\centering \Huge
+
+**To be continued...**
+
+
+
+
+
+
+
+
+
+
+
+
