@@ -1,0 +1,15 @@
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.pdf
+__pycache__/
+.ruff_cache/
+.pixi/
+
+# The two built editions are committed on purpose
+!booklet.pdf
+!booklet-organiser.pdf

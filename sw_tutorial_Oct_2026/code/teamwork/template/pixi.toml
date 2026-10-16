@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: 2026 CERN for the benefit of the SHiP Collaboration
+# SPDX-License-Identifier: LGPL-3.0-or-later
+#
+# The environment of the team analysis: everybody, and CI, runs the same
+# Python and the same ROOT. Commit this file together with pixi.lock.
+#
+#   pixi install          # once: create the environment in .pixi/
+#   pixi run check-task 4 # test task 4 on its own
+#   pixi run check        # test every task
+#   pixi run analysis     # run the chain as far as it goes
+#   pixi run lint         # static checks of the Python code
+
+[workspace]
+name = "mystery-resonance"
+description = "Team analysis of the SHiP software tutorial"
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-arm64"]
+requires-pixi = ">=0.68"
+
+[dependencies]
+python = ">=3.11"
+root_base = ">=6.36"  # ROOT with PyROOT, without the optional extras
+
+[tasks]
+analysis = { cmd = "python mystery_analysis.py", description = "Run the ten tasks as far as they are written" }
+check = { cmd = "python check_task.py all", description = "Test every task (what CI runs)" }
+check-task = { cmd = "python check_task.py {{ n }}", args = ["n"], description = "Test task n alone: pixi run check-task 4" }
+
+# A separate environment for the linter, as in the ShipSoft repositories: the
+# tools do not end up in the analysis environment.
+[feature.lint.dependencies]
+ruff = "*"
+
+[feature.lint.tasks]
+lint = { cmd = "ruff check .", description = "Static checks of the Python code" }
+
+[environments]
+lint = { features = ["lint"], no-default-feature = true }

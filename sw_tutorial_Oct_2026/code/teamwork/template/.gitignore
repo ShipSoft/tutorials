@@ -1,0 +1,9 @@
+# Data and outputs are not source code: keep them out of the history.
+*.root
+*.pdf
+__pycache__/
+
+# pixi environments (pixi.toml and pixi.lock ARE committed)
+.pixi/*
+!.pixi/config.toml
+.ruff_cache/

@@ -1,0 +1,183 @@
+\chapter{Setting up the SHiP software}
+\label{ch:setup}
+
+\chaptergoals{1 of 11 in Part~II.}
+{Part~I, in particular \cref{ch:pixi}; a Linux x86\_64 machine with enough disk space.}
+{install the SHiP software chain in one pixi environment, check that it works, and have the tutorial input files at hand.}
+
+\begin{organisernote}
+This chapter is a skeleton for the setup introduction given at the start of
+the tutorial. Replace the \tbd{} items once the tutorial environment is
+frozen. Whatever the final recipe, participants must leave this chapter with
+\emph{one} environment in which \cmd{phlex}, \cmd{jsonnet}, the \pkg{aegir},
+\pkg{Shannon} and \pkg{sea-cucumber} plugins and executables, \cmd{gmex}
+and PyROOT all work, and with the tutorial input files on disk.
+\end{organisernote}
+
+\section{What you need}
+
+\begin{itemize}
+  \item A Linux x86\_64 machine: the SHiP packages are built for
+        \texttt{linux-64} only. \tbd{lxplus / institute machines / provided VMs;
+        macOS users?}
+  \item About \tbd{N}\,GB of free disk space for the environment and the
+        tutorial files.
+  \item \href{https://pixi.sh}{pixi} (\cref{ch:pixi}), the package manager
+        used by the new-stack repositories. It installs everything else,
+        compilers included, without root access.
+  \item A web browser, for the \pkg{sea-cucumber} web display (\cref{ch:display}).
+\end{itemize}
+
+\section{Where the software comes from}
+
+Released components of the new stack are distributed as conda packages on the
+\href{https://prefix.dev/channels/ship}{\texttt{prefix.dev/ship}} channel;
+other dependencies are resolved from the SHiP channel and
+\texttt{conda-forge}. The recipes are in \repo{ship-conda-recipes}. Each
+repository carries a \file{pixi.toml} that pins its dependencies and a
+\file{pixi.lock} that freezes the exact versions, so the same committed lock file can reproduce a resolved environment.
+Use the tutor-provided revision and lock file; cloning moving branches does
+not freeze the software. \cmd{pixi install --locked} prevents silent re-resolution.
+
+\begin{note}
+As in \cref{ch:pixi}, two commands do almost everything:
+\begin{description}[style=nextline]
+  \item[\cmd{pixi run <task or command>}] runs one command inside the
+    environment, e.g.\ \cmd{pixi run build} or \cmd{pixi run phlex -c \ldots}.
+  \item[\cmd{pixi shell}] opens a shell with the environment active until you
+    \cmd{exit}. This is the convenient mode for this tutorial.
+\end{description}
+\end{note}
+
+\section{The tutorial environment}
+
+\tbd{Final recipe. Either a single tutorial \file{pixi.toml} pulling in all
+packages at the versions in \cref{tab:versions}, or the per-repository
+checkouts below.}
+
+If you work with the individual repositories, check them out side by side;
+the SHiP developer guide calls this the \emph{sibling layout}, and some
+configuration files refer to each other by relative path:
+
+\begin{shell}
+cd "$SHIP_TUTORIAL"
+for r in Geometry aegir Shannon sea-cucumber field_service; do
+  git clone https://github.com/ShipSoft/$r.git
+done
+(cd Geometry && pixi run geometry)     # builds the detector description
+(cd aegir    && pixi run build)        # builds the simulation plugins
+(cd Shannon  && pixi run build)        # builds the digitisation plugins
+# Before building sea-cucumber, pin shipdatamodel to >=0.5,<0.6
+# in its pixi.toml and freeze the resolved environment with the tutors.
+(cd sea-cucumber && pixi run build)    # after that compatibility check
+\end{shell}
+
+Inside \pkg{aegir} and \pkg{Shannon}, the pixi activation script
+(\file{activate.sh}) sets the environment variables the framework needs:
+
+\begin{center}
+\begin{tabularx}{\linewidth}{>{\ttfamily}lX}
+\toprule
+\normalfont\bfseries Variable & \bfseries Meaning \\
+\midrule
+PHLEX\_PLUGIN\_PATH & where \cmd{phlex} looks for plugins: the package's
+  \file{build/} directory, then the environment's \file{lib/} \\
+SHIPGEOMETRY\_ROOT & a bare geometry file name such as
+  \file{ship\_geometry.db} is looked up in the current directory, then in
+  \file{\$SHIPGEOMETRY\_ROOT/share/geometry/} \\
+SHIPFIELD\_ROOT & a bare field-map file name is looked up in
+  \file{\$SHIPFIELD\_ROOT/share/field/} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Versions used in this booklet}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lll}
+\toprule
+Package & conda package & Version \\
+\midrule
+\pkg{Geometry}         & \texttt{shipgeometry}         & \tbd{x.y} \\
+\pkg{geometry service} & \texttt{shipgeometryservice}  & \tbd{x.y} \\
+\pkg{field service}    & \texttt{field-service}        & \tbd{x.y} \\
+\pkg{data model}       & \texttt{shipdatamodel}        & 0.5.x \\
+\pkg{ship-random}      & \texttt{ship-random}          & \tbd{x.y} \\
+\pkg{aegir}            & \texttt{aegir}                & \tbd{x.y} \\
+\pkg{Shannon}          & \texttt{shannon}              & \tbd{x.y} \\
+\pkg{sea-cucumber}     & (built from source)           & \tbd{commit} \\
+Phlex                  & \texttt{phlex}                & $\geq 0.4.1$ \\
+\bottomrule
+\end{tabular}
+\caption{Target version constraints and values still to freeze. This is not a tested environment manifest.}
+\label{tab:versions}
+\end{table}
+
+\begin{pitfall}
+The data model is at the centre of a version chain: \pkg{aegir} writes it,
+\pkg{Shannon} and \pkg{sea-cucumber} read it, and your analysis reads it
+too. \texttt{shipdatamodel} 0.6 renamed camelCase data-model members to snake\_case, for example
+\field{pdgCode} to \field{pdg\_code}. This booklet uses the 0.5 names, which is what \pkg{aegir}
+and \pkg{Shannon} are built against at the time of writing.
+\Cref{app:datamodel} lists both spellings. If a script fails with an
+unknown member, check which data-model version your environment has before
+anything else.
+\end{pitfall}
+
+\begin{organisernote}
+Data model 0.6.0 (13~October~2026) is the breaking snake\_case rename.
+\pkg{aegir} and \pkg{Trout} pin \texttt{shipdatamodel >=0.5,<0.6},
+\pkg{Shannon} pins \texttt{>=0.3,<0.6}, and \pkg{sea-cucumber} takes
+\texttt{"*"} while its source still uses the camelCase names, so a fresh
+\pkg{sea-cucumber} environment may resolve 0.6 and fail to build. Freeze all
+packages on one data-model version for the tutorial; if that becomes 0.6,
+the plugins and analysis scripts need an API migration, and existing
+digitised files need an explicit compatibility strategy. The member mapping is in
+\cref{app:datamodel}.
+\end{organisernote}
+
+\begin{pitfall}
+As checked on 15 October 2026, \pkg{field service}'s development manifest
+requires \texttt{shipdatamodel >=0.6.0}, while \pkg{aegir} requires
+\texttt{>=0.5,<0.6}. These constraints cannot be satisfied in one environment.
+Use a compatible released field-service build with the simulation, or keep
+field-map tools in a separate process and verify their file format against
+that build. Do not add the current field-service checkout to the simulation
+environment without resolving this conflict. \pkg{sea-cucumber}'s unbounded
+data-model dependency also needs a compatible pin before a fresh solve.
+\end{pitfall}
+
+\section{Tutorial input files}
+
+Two kinds of input are provided rather than generated during the tutorial:
+
+\begin{itemize}
+  \item \textbf{HNL samples}: events from \pkg{EventCalc}, already converted to
+        the SHiP data model (\cref{ch:generator}). Location: \tbd{path or URL}.
+  \item \textbf{Field maps}: the muon-shield and spectrometer maps in the SHiP
+        field-map format (\cref{sec:fieldservice}). Location: \tbd{path or URL}.
+\end{itemize}
+
+Copy them to \file{\$SHIP\_TUTORIAL/work/}. Keep the sample metadata
+(mass, lifetime, mixing, generator revision, coordinate transform, weights
+and exposure) beside the files.
+
+\begin{exercise}{Check your environment}
+From the \file{aegir} directory, open a shell in the environment and check
+that the tools respond:
+\begin{shell}
+pixi shell
+which phlex jsonnet
+# In the Geometry environment, check gmex separately: which gmex
+echo $PHLEX_PLUGIN_PATH
+python -c "import ROOT; print(ROOT.gROOT.GetVersion())"
+\end{shell}
+\end{exercise}
+
+\begin{checkpoint}
+Paths for Phlex and Jsonnet inside the pixi environment, a plugin path that starts with the
+\file{aegir/build} directory, and a ROOT version satisfying the frozen environment (aegir currently requires
+6.40 or later). Geometry viewing additionally needs \cmd{gmex} and a graphical
+session; do not assume it is installed in the aegir environment.
+\end{checkpoint}

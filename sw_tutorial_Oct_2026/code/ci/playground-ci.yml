@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2026 CERN for the benefit of the SHiP Collaboration
+# SPDX-License-Identifier: LGPL-3.0-or-later
+#
+# A first CI workflow for your pixi playground (booklet chapter on CI).
+# Copy it to .github/workflows/ci.yml in that repository, commit, and push.
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  hello:
+    name: Hello from CI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: prefix-dev/setup-pixi@v0.11.0
+        with:
+          locked: true
+      - name: Run the same task you run at home
+        run: pixi run --locked hello

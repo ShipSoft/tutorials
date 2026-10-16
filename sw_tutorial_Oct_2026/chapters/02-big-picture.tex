@@ -1,0 +1,179 @@
+\chapter{The big picture}
+\label{ch:bigpicture}
+
+\chaptergoals{2 of 11 in Part~II.}
+{\cref{ch:setup}: a working environment.}
+{name the packages of the chain and the file each one produces, read a Phlex workflow, and explain why runs are reproducible.}
+
+\section{The guiding example}
+
+A heavy neutral lepton mixes with the active neutrinos. At SHiP it is produced
+mostly in decays of charm and beauty mesons in the target, flies through the
+muon shield without interacting, and decays somewhere in the 50\,m long decay
+volume. We follow its decay
+\[
+  \HNL \to \pi^{\pm}\mu^{\mp},
+\]
+a useful benchmark signature: two charged tracks from a common vertex
+inside the decay volume, no activity in the veto taggers, and a reconstructed invariant
+mass distributed around the HNL mass.
+
+You will take a sample of such decays and push it through the whole chain in
+\cref{fig:chain}: transport the two daughters through the detector, look at
+the result in the event display, turn energy deposits into detector hits, and
+finally form an illustrative weighted acceptance estimate.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  node distance=7mm and 6mm,
+  every node/.style={font=\sffamily\small},
+  stage/.style={draw=shipnavy, fill=shipcream!60, rounded corners=2pt,
+    minimum width=27mm, minimum height=9mm, align=center, line width=0.7pt},
+  service/.style={draw=shipblue, fill=shipblue!8, rounded corners=2pt,
+    minimum width=27mm, minimum height=8mm, align=center},
+  datafile/.style={draw=shippink, fill=shippink!8, rounded corners=0pt,
+    minimum width=23mm, minimum height=6mm,
+    align=center, font=\ttfamily\footnotesize},
+  future/.style={stage, draw=black!65, fill=gray!8, densely dotted, text=black!75},
+  flow/.style={-{Stealth[length=2.2mm]}, line width=0.8pt, color=shipnavy},
+  uses/.style={-{Stealth[length=2mm]}, color=shipblue, dashed},
+]
+  \node[stage] (evc) {EventCalc\\\scriptsize HNL decays};
+  \node[datafile, below=of evc] (hnl) {hnl\_events.root};
+  \node[stage, below=of hnl] (aegir) {\textbf{aegir}\\\scriptsize Geant4 transport};
+  \node[datafile, below=of aegir] (sim) {hnl\_sim.root};
+  \node[stage, below=of sim] (shannon) {\textbf{Shannon}\\\scriptsize digitisation};
+  \node[datafile, below=of shannon] (digi) {hnl\_digi.root};
+  \node[future, below=of digi] (trout) {Trout\\\scriptsize reconstruction};
+
+  \node[service, left=12mm of aegir] (geosvc) {geometry service};
+  \node[service, above=of geosvc] (geo) {Geometry\\\scriptsize\ttfamily ship\_geometry.db};
+  \node[service, below=of geosvc] (field) {field service\\\scriptsize field maps};
+
+  \node[stage, right=12mm of sim] (sc) {\textbf{sea-cucumber}\\\scriptsize event display\\[-1pt]\scriptsize(+ \texttt{ship\_geometry.db})};
+  \node[stage, right=12mm of digi, fill=shipcream!25] (ana) {your analysis\\\scriptsize Python + ROOT};
+
+  \draw[flow] (evc) -- node[right, font=\scriptsize\sffamily] {your converter} (hnl);
+  \draw[flow] (hnl) -- (aegir);
+  \draw[flow] (aegir) -- (sim);
+  \draw[flow] (sim) -- (shannon);
+  \draw[flow] (shannon) -- (digi);
+  \draw[flow, black!65, densely dotted] (digi) -- (trout);
+
+  \draw[uses] (geo) -- (geosvc);
+  \draw[uses] (geosvc) -- (aegir);
+  \draw[uses] (field) -- (aegir);
+  \draw[flow] (sim) -- (sc);
+  \draw[flow] ([yshift=-2mm]sim.east) -- ++(5mm,0) |- ([yshift=2mm]ana.west);
+  \draw[flow] (digi) -- (ana);
+
+  \begin{scope}[on background layer]
+    \node[draw=shipblue!40, fill=shipblue!3, rounded corners=4pt, inner sep=4mm,
+      fit=(geo)(geosvc)(field), label={[font=\sffamily\scriptsize\color{shipblue}]above:detector description}] {};
+  \end{scope}
+\end{tikzpicture}
+\caption{The chain followed in this booklet. Solid arrows carry event data
+between stages; dashed arrows supply detector information. The dotted
+Trout branch is an outlook. Event files are ROOT RNTuples; the geometry
+is a SQLite database and field maps are ROOT RNTuples in their own schema.}
+\label{fig:chain}
+\end{figure}
+
+\section{The packages}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{l l L}
+\toprule
+Package & Repository & Role \\
+\midrule
+\pkg{Geometry}          & \repo{Geometry}         & The SHiP detector described in GeoModel; writes \file{ship\_geometry.db}. \\
+\pkg{geometry service}  & \repo{geometry\_service}& Framework-independent access to that geometry, as GeoModel or as Geant4 volumes. \\
+\pkg{field service}     & \repo{field\_service}   & Field maps in a versioned file format, evaluated for Geant4 and ACTS. \\
+\pkg{data model}        & \repo{data-model}       & The event classes (\texttt{MCParticle}, \texttt{SimHit}, \ldots) and their ROOT I/O. \\
+\pkg{ship-random}       & \repo{ship-random}      & The counter-based random number generator shared by all packages. \\
+\pkg{aegir}             & \repo{aegir}            & Simulation: event sources plus Geant4, as Phlex plugins. \\
+\pkg{sea-cucumber}      & \repo{sea-cucumber}     & Event display, in ROOT REve or in the browser. \\
+\pkg{Shannon}           & \repo{Shannon}          & Digitisation: simulated hits into detector hits. \\
+\pkg{Trout}             & \repo{Trout}            & Reconstruction (not covered hands-on, see \cref{ch:outlook}). \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+All of these are new code. \pkg{FairShip}, the framework used for SHiP so far,
+is not needed for anything in this booklet.
+
+\section{Phlex in one page}
+\label{sec:phlex}
+
+\pkg{aegir}, \pkg{Shannon} and \pkg{Trout} are not programs in their own right:
+they are collections of plugins for
+\href{https://github.com/Framework-R-D/phlex}{Phlex}, a data-flow framework
+developed by the Framework R\&D project. You never write a \texttt{main()}. Instead you write a
+\emph{workflow} file that names the plugins to load and configures each one,
+and the \cmd{phlex} executable builds a graph from it and runs it, in
+parallel where the data allow.
+
+\paragraph{Plugins.} Each plugin is a shared library found on
+\texttt{PHLEX\_PLUGIN\_PATH}, referred to in a workflow by its \texttt{cpp}
+name. There are four kinds you will meet:
+
+\begin{description}[leftmargin=2.2cm, style=sameline]
+  \item[driver]   says which data cells exist: for example ``a job with 100
+                  events'' (\texttt{generate\_layers}).
+  \item[source / provider] puts products into a cell: generated or read
+                  particles per event, the geometry and field once per job.
+  \item[transform] turns products into new products, such as particles into
+                  hits (Geant4) or hits into digitised hits.
+  \item[observer] consumes products without producing any: output writers and
+                  histogram fillers.
+\end{description}
+
+\paragraph{Layers.} Cells are organised in layers: a \texttt{job} contains
+\texttt{event}s in \pkg{aegir}, and \texttt{spill}s in \pkg{Shannon}. A product
+lives in one layer; the geometry is a job-level product shared by every event.
+
+\paragraph{Stages.} Every job names its processing stage
+(\texttt{simulation}, \texttt{digitisation}), and the products it creates are
+labelled with it.
+
+\paragraph{Workflows are jsonnet.}
+\href{https://jsonnet.org}{Jsonnet} is JSON with variables, functions and
+imports. The \pkg{aegir} workflows import building blocks from
+\file{workflows/lib.libsonnet} and override what they need. Values that change
+from run to run (number of events, file names) are passed as external
+variables, so a run is typically:
+
+\begin{shell}
+phlex -c <(jsonnet --ext-str events=100 --ext-str infile=hnl_events.root \
+                   my_workflow.jsonnet) -j 4
+\end{shell}
+
+\cmd{jsonnet} expands the workflow to plain JSON, the shell hands it to
+\cmd{phlex} as a file, and \cmd{-j 4} lets Phlex use four threads.
+
+\begin{note}
+You can always look at what \cmd{phlex} actually receives by running the
+\cmd{jsonnet} part on its own. This is the first thing to do when a workflow
+does not behave as expected.
+\end{note}
+
+\section{Reproducibility in one paragraph}
+
+The simulation and digitisation plugins use \pkg{ship-random}'s
+\texttt{PhiloxRng}, a counter-based generator: a fresh generator is seeded per
+event from \emph{(seed, stream key, event number)}, with no state shared
+between events. The same seed therefore gives the same events whatever the
+number of threads and in whatever order events finish. The aegir generator and transport plugins choose and log a random seed
+when none is supplied; Shannon defaults to seed zero. This booklet sets
+explicit seeds. Reproducibility also requires fixed inputs, software and
+configuration. Shannon seeds by input entry/spill index, so reordering a
+simulation file changes which random stream a physical event receives.
+
+\begin{pitfall}
+Output writers fill RNTuples from several threads at once, so entries appear
+in the order events \emph{finish}, not in event-number order. In \pkg{aegir}
+output every entry carries its \field{event\_number}; never assume that entry
+$i$ is event $i$.
+\end{pitfall}

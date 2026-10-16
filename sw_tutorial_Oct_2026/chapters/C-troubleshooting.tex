@@ -1,0 +1,56 @@
+\chapter{Troubleshooting}
+\label{app:troubleshooting}
+
+\newcommand{\problem}[1]{\par\medskip\noindent{\raggedright\ttfamily\small\color{shipnavy}#1\par}\nobreak\smallskip\noindent}
+
+\problem{Cannot locate geometry DB 'ship\_geometry.db'; set SHIPGEOMETRY\_ROOT ...}
+\pkg{aegir} found the file neither in the directory you ran \cmd{phlex} from
+nor in the geometry search directory under \texttt{\$SHIPGEOMETRY\_ROOT}.  Run from \file{work/},
+or give an absolute path in the workflow.
+
+\problem{<file>: not a SHiP field-map file: ...}
+The field-map file was not found or is not in the SHiP format. Bare names are
+looked up in the current directory, then in
+\file{\$SHIPFIELD\_ROOT/share/field/}. Check the \texttt{file} and
+\texttt{map} names with \cmd{fieldmap\_dump}; convert FairShip maps with
+\cmd{fairship\_to\_fieldmap}.
+
+\problem{Field region '...': volume\_pattern '...' matches no logical volumes}
+A field \texttt{volume\_pattern} matches no volume in the geometry. Patterns
+are substrings of the \texttt{/SHiP/\ldots} names (\cref{sec:coordinates}).
+
+\problem{No digitiser registered for detector ID n}
+The simulation's \texttt{sensitive\_volumes} list has more than five entries
+(\cref{sec:sensitive}). A wrong order within IDs 0--4 does not raise
+this error, so verify the mapping explicitly. Correct the list and re-simulate.
+
+\problem{file\_source: '...' has no 'event\_header' field}
+The input has no weights; \pkg{aegir} uses 1.0 for every event. Fix the
+converter for weighted yields; use unweighted files only for explicitly
+labelled shape or interface checks.
+
+\problem{AttributeError: ... has no attribute 'pdgCode'}
+Your environment has data model 0.6 or later, where members are snake\_case
+(\cref{app:datamodel}). Use the matching environment, or rename in the script.
+
+\problem{Python crashes at the very end of a script (segmentation violation in RNTupleReader)}
+A known PyROOT teardown issue. End scripts with \texttt{sf.finish()} (or
+\texttt{sys.stdout.flush(); os.\_exit(0)}), as the booklet's scripts do.
+
+\problem{jsonnet: RUNTIME ERROR: undefined external variable: events}
+An \cmd{--ext-str} is missing from the \cmd{jsonnet} command. Run the
+\cmd{jsonnet} part alone to see what \cmd{phlex} would receive.
+
+\problem{phlex: cannot find plugin ...}
+\texttt{PHLEX\_PLUGIN\_PATH} does not include the package's \file{build/}
+directory: you are not in that package's \cmd{pixi shell}, or the package is
+not built (\cmd{pixi run build}).
+
+\problem{The event display is empty or very slow}
+Check \cmd{--data} points to the simulation file, not the digitised one.
+For speed, use a geometry cache (\cref{ch:display}) and keep the dense
+subsystems excluded in the view file.
+
+\problem{The web display shows nothing}
+\cmd{pixi run web-data} must run before \cmd{pixi run web}, and the page needs
+internet access to load three.js.

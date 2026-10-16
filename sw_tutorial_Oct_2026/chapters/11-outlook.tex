@@ -1,0 +1,69 @@
+\chapter{Outlook: reconstruction with Trout}
+\label{ch:outlook}
+
+\chaptergoals{11 of 11 in Part~II.}
+{the rest of the booklet.}
+{place reconstruction in the chain, and bring your questions about it to the closing discussion.}
+
+\repo{Trout} is the SHiP reconstruction. It is under active development and
+not part of the hands-on programme, but it closes the chain of
+\cref{fig:chain}, and its design answers several questions this tutorial
+raised. This chapter is the starting point for the closing discussion.
+
+\section{Where it stands}
+
+\pkg{Trout} is a set of Phlex plugins, like \pkg{aegir} and \pkg{Shannon}, and
+it depends on the same three packages you met first: the data model, the
+geometry and the field service. It runs on \pkg{Shannon} output or, later, on
+real detector data. Its main pieces:
+
+\begin{description}[style=nextline]
+  \item[\texttt{read\_digitised\_hits}] reads \pkg{Shannon}'s per-detector hit
+    streams. Grouping hits by time into candidate events is a later
+    reconstruction step, not something the files impose.
+  \item[\texttt{acts\_geometry\_provider}, \texttt{acts\_field\_provider}]
+    build the \href{https://acts.readthedocs.io}{ACTS} tracking geometry and
+    the field, the latter through the field service's ACTS adapter.
+  \item[\texttt{spectrometer\_tracking}] pattern recognition and fitting in
+    three Phlex stages: per-spill preparation of the straw measurements,
+    seeds from pairs of hits in stations 1 and 2, and for each seed a
+    combinatorial Kalman filter (ACTS CKF) followed by a Kalman fit. Each seed
+    is a separate Phlex data cell, so the framework schedules the fits in
+    parallel.
+  \item[detector modules] for the UBT, SBT, timing detector and calorimeter.
+  \item[\texttt{rec\_output\_module}] writes \texttt{TrackFitResult}s and
+    reconstructed particles.
+\end{description}
+
+Vertexing is not there yet: the impact parameter in \texttt{RecParticle} is
+computed with respect to the origin as a placeholder.
+
+\section{Questions for the discussion}
+
+\begin{enumerate}
+  \item \textbf{From hits to events.} \pkg{Shannon} writes hit streams and
+        \pkg{Trout} will form events by time. How should Monte Carlo truth
+        (which simulated event, which particle, which weight) travel along so
+        that efficiencies can be measured after reconstruction?
+  \item \textbf{The sensitive-volume contract.} \pkg{aegir} numbers detectors
+        by position in a list, \pkg{Shannon} by an enum. Should the geometry
+        itself tag sensitive volumes and their detector, so that the list in
+        \file{hnl\_sim.jsonnet} disappears?
+  \item \textbf{Digitisation models.} Every detector uses the same placeholder
+        smearing. Which detector needs a realistic model first for the HNL
+        analysis to be meaningful, and what does it need from the geometry
+        service?
+  \item \textbf{Vertexing and the HNL selection.} The exercise in
+        \cref{ch:analysis} found a vertex from straight lines. What does a
+        real vertex fit need, and where should it live?
+  \item \textbf{Versions.} One data-model change touches every package. How
+        should the packages move together, and how should analysis scripts
+        cope with member renames?
+\end{enumerate}
+
+\begin{organisernote}
+Points 1 and 2 come straight out of problems participants will have hit
+(\cref{sec:digilayout,sec:sensitive}). Point 5 is the snake\_case rename of
+data model 0.6 (\cref{app:datamodel}). Collect the outcome as issues on the
+relevant repositories.
+\end{organisernote}

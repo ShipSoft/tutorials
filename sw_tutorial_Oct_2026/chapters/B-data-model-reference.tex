@@ -1,0 +1,97 @@
+\chapter{Data-model reference}
+\label{app:datamodel}
+
+Members of the classes in \repo{data-model}, in namespace \texttt{SHiP}. The
+first column gives the name in version 0.5, used throughout this booklet; the
+second gives the corresponding 0.6 name. Not every member changed.
+The compatibility limitations in \cref{ch:datamodel} still apply. Positions are in mm, momenta in GeV/$c$, energies in GeV, times
+in ns. Arrays of three are $(x, y, z)$.
+
+\newcommand{\dmrow}[4]{\texttt{#1} & \texttt{#2} & #3 & #4 \\}
+\newenvironment{dmtable}[1]
+  {\par\medskip\setlength{\parfillskip}{0pt plus 1fil}\noindent\begin{minipage}{\linewidth}
+   \subsection*{#1}\small\setlength{\tabcolsep}{4pt}
+   \setlength{\parfillskip}{0pt plus 1fil}
+   \noindent\tabular{@{}P{0.22\linewidth} P{0.22\linewidth} P{0.17\linewidth} P{\dimexpr0.39\linewidth-24pt\relax}@{}}
+   \toprule 0.5 & from 0.6 & type & meaning \\ \midrule}
+  {\bottomrule\endtabular\par\end{minipage}\par\medskip}
+
+\begin{dmtable}{EventHeader}
+\dmrow{weight}{weight}{double}{event weight; for EventCalc samples $P_\mathrm{decay}$}
+\dmrow{original\_event\_id}{original\_event\_id}{int64}{event number in the original generator file; $-1$ if unknown}
+\end{dmtable}
+
+\begin{dmtable}{MCParticle}
+\dmrow{pdgCode}{pdg\_code}{int32}{PDG particle code}
+\dmrow{vertex}{vertex}{double[3]}{production vertex}
+\dmrow{momentum}{momentum}{double[3]}{momentum}
+\dmrow{energy}{energy}{double}{\textbf{total} energy}
+\dmrow{time}{time}{double}{production time}
+\dmrow{motherId}{mother\_id}{int32}{index of the first mother in the same vector; $-1$ for none}
+\dmrow{mothers}{mothers}{vector<int32>}{indices of all mothers (from 0.5)}
+\dmrow{status}{status}{int32}{HepMC status; 1 = tracked by Geant4}
+\end{dmtable}
+
+\begin{dmtable}{SimParticle}
+\dmrow{trackId}{track\_id}{int32}{Geant4 track ID, unique within an event}
+\dmrow{parentId}{parent\_id}{int32}{track ID of the creator; 0 for generator particles}
+\dmrow{pdgCode}{pdg\_code}{int32}{PDG particle code}
+\dmrow{vertex}{vertex}{double[3]}{production vertex}
+\dmrow{endpoint}{endpoint}{double[3]}{where tracking stopped}
+\dmrow{momentum}{momentum}{double[3]}{initial momentum}
+\dmrow{energy}{energy}{double}{initial \textbf{kinetic} energy}
+\dmrow{time}{time}{double}{production time}
+\dmrow{creatorProcess}{creator\_process}{int32}{Geant4 process sub-type that created the track}
+\end{dmtable}
+
+\begin{dmtable}{SimHit}
+\dmrow{detectorId}{detector\_id}{int32}{0 UBT, 1 SBT, 2 straws, 3 calorimeter, 4 timing}
+\dmrow{geometryNodeId}{geometry\_node\_id}{int32}{identifier of the volume hit}
+\dmrow{trackId}{track\_id}{int32}{Geant4 track that made the hit}
+\dmrow{pdgCode}{pdg\_code}{int32}{PDG code of that track}
+\dmrow{position}{position}{double[3]}{hit position}
+\dmrow{momentum}{momentum}{double[3]}{momentum at the hit}
+\dmrow{energyDeposit}{energy\_deposit}{double}{energy deposited in the step}
+\dmrow{time}{time}{double}{global time}
+\dmrow{pathLength}{path\_length}{double}{step length}
+\end{dmtable}
+
+\begin{dmtable}{RecHit, and the detector hits wrapping it}
+\dmrow{detectorId}{detector\_id}{int32}{as in \texttt{SimHit}}
+\dmrow{trackId}{track\_id}{int32}{truth link, as in \texttt{SimHit}}
+\dmrow{pdgCode}{pdg\_code}{int32}{truth link, as in \texttt{SimHit}}
+\dmrow{position}{position}{double[3]}{measured position}
+\dmrow{momentum}{momentum}{double[3]}{as in \texttt{SimHit}}
+\dmrow{energyDeposit}{energy\_deposit}{double}{as in \texttt{SimHit}}
+\dmrow{time}{time}{double}{measured time}
+\dmrow{pathLength}{path\_length}{double}{as in \texttt{SimHit}}
+\multicolumn{4}{@{}p{\linewidth}@{}}{\texttt{UBTHit}, \texttt{SBTHit}, \texttt{StrawTubesHit}, \texttt{CaloHit},
+  \texttt{TimeDetHit}: one member \texttt{recHit} (0.6: \texttt{rec\_hit}).} \\
+\end{dmtable}
+
+\begin{dmtable}{RecParticle (reconstruction)}
+\dmrow{trackId}{track\_id}{int32}{}
+\dmrow{parentId}{parent\_id}{int32}{}
+\dmrow{pdgCode}{pdg\_code}{int32}{}
+\dmrow{vertex}{vertex}{double[3]}{production vertex}
+\dmrow{endpoint}{endpoint}{double[3]}{end point}
+\dmrow{momentum}{momentum}{double[3]}{initial momentum}
+\dmrow{hits}{hits}{vector<RecHit>}{hits on the particle}
+\dmrow{energy}{energy}{double}{initial kinetic energy}
+\dmrow{time}{time}{double}{production time}
+\dmrow{creatorProcess}{creator\_process}{int32}{}
+\dmrow{ipPV}{ip\_pv}{double}{impact parameter w.r.t.\ the primary vertex (now: the origin)}
+\end{dmtable}
+
+\begin{dmtable}{TrackFitResult (reconstruction)}
+\dmrow{nMeas}{n\_meas}{int32}{number of measurements}
+\dmrow{fitStatus}{fit\_status}{int32}{0 success, 1 failure}
+\dmrow{chi2}{chi2}{double}{}
+\dmrow{ndf}{ndf}{int32}{}
+\dmrow{qoverp}{q\_over\_p}{double}{charge over momentum}
+\dmrow{phi}{phi}{double}{}
+\dmrow{theta}{theta}{double}{}
+\dmrow{time}{time}{double}{}
+\dmrow{refLoc}{ref\_loc}{double[3]}{reference location}
+\multicolumn{4}{l}{plus input and fitted measurements and residuals in $x$ and $y$ (vectors).} \\
+\end{dmtable}

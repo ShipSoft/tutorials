@@ -1,0 +1,223 @@
+\chapter{Remotes and pull requests}
+\label{ch:remotes}
+
+\chaptergoals{3 of 6 in Part~I.}
+{\cref{ch:git,ch:branches}. A GitHub account for the second half of the
+chapter, from \cref{sec:forks} on.}
+{exchange commits with other copies of a repository (clone, fetch, pull,
+push), work with a fork, and take a change through a ShipSoft pull request.}
+
+\section{Remotes}
+
+A \emph{remote} is another copy of the repository that you exchange commits
+with. On GitHub it is usually called \texttt{origin}. Before going to GitHub,
+it helps to see that nothing magic happens there: a remote can just as well
+be a directory on your own disk.
+
+\begin{exercise}{A server on your own machine}
+\label{ex:localserver}
+Play two people, Alice and Bob, sharing one ``server'' repository. Next to
+\file{git-playground} (not inside it):
+\begin{shell}
+git init --bare server.git              # a repository without a working tree
+git clone server.git alice
+git clone server.git bob                # (both warn: the repository is empty)
+cd alice
+echo "# Notes" > notes.md && git add notes.md
+git commit -m "docs: start the notes"
+git push -u origin main                 # Alice publishes main
+cd ../bob
+git pull origin main                    # Bob gets it
+\end{shell}
+Now Bob starts work on a branch while Alice publishes more:
+\begin{shell}
+git switch -c bob-idea                  # in bob/
+echo "an idea" > idea.md && git add idea.md && git commit -m "docs: add an idea"
+cd ../alice
+echo "more" >> notes.md && git commit -am "docs: more notes" && git push
+cd ../bob
+git fetch                               # download, change nothing
+git log --oneline --graph --all         # origin/main is ahead of Bob's base
+git rebase origin/main                  # replay Bob's idea on top of it
+git push -u origin bob-idea
+\end{shell}
+\end{exercise}
+
+These are all the remote operations you need:
+
+\begin{description}[style=nextline]
+\item[\cmd{git clone <address>}] copies a repository and remembers where it
+  came from as the remote \texttt{origin}.
+\item[\cmd{git fetch}] downloads new commits and updates the
+  \emph{remote-tracking} branches such as \texttt{origin/main}. It never
+  touches your own branches or files, so it is always safe; afterwards you
+  can look before you act (\cmd{git log main..origin/main}).
+\item[\cmd{git pull}] is \cmd{git fetch} followed by integrating the remote
+  branch into your current branch: by rebasing, with the \cmd{pull.rebase}
+  setting from \cref{ex:gitfirst}.
+\item[\cmd{git push -u origin <branch>}] uploads your branch. \cmd{-u}
+  remembers the pairing, so later a plain \cmd{git push} suffices.
+\item[\cmd{git push -{}-force-with-lease}] uploads a branch you have
+  rebased, replacing your old commits on the remote. It refuses if somebody
+  else pushed to that branch in the meantime; never use plain
+  \cmd{-{}-force}.
+\end{description}
+
+\section{Forks}
+\label{sec:forks}
+
+You cannot push to the ShipSoft repositories themselves. Like most
+open-source projects, SHiP uses \emph{forks}: GitHub makes you a personal copy
+of the repository, you push your branches there, and you ask for them to be
+taken into the original with a pull request. So you work with two remotes.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+  box/.style={draw=shipnavy, fill=shipcream, rounded corners=2pt, minimum width=36mm,
+    minimum height=11mm, align=center, font=\sffamily\small},
+  move/.style={-{Stealth[length=2mm]}, line width=0.7pt, color=shipnavy},
+  lab/.style={font=\ttfamily\scriptsize, fill=white, inner sep=1pt, align=center}]
+  \node[box] (up) {\textbf{upstream}\\\scriptsize github.com/ShipSoft/aegir};
+  \node[box, right=34mm of up] (fork) {\textbf{origin} (your fork)\\\scriptsize github.com/you/aegir};
+  \node[box, below=16mm of $(up)!0.5!(fork)$] (local) {\textbf{your clone}\\\scriptsize on your machine};
+  \draw[move, dashed] ([yshift=1.5mm]fork.west) -- node[lab, above=1pt] {pull request} ([yshift=1.5mm]up.east);
+  \draw[move] ([yshift=-1.5mm]up.east) -- node[lab, below=1pt] {``Fork'' button} ([yshift=-1.5mm]fork.west);
+  \draw[move] (up.south) -- node[lab, left=2pt] {git fetch upstream\\git pull upstream main} (local.north west);
+  \draw[move] (local.north east) -- node[lab, right=2pt] {git push origin\\\textrm{\scriptsize (your branch)}} (fork.south);
+\end{tikzpicture}
+\caption{The fork workflow. You read from \texttt{upstream}, write to your
+fork (\texttt{origin}), and ask for your branch to be taken into
+\texttt{upstream} with a pull request.}
+\label{fig:forks}
+\end{figure}
+
+\begin{shell}
+git clone git@github.com:<you>/aegir.git        # your fork becomes "origin"
+cd aegir
+git remote add upstream git@github.com:ShipSoft/aegir.git
+git remote -v                                    # lists both
+\end{shell}
+
+In \cref{ex:localserver} there was one remote; with a fork, you fetch and pull
+from \texttt{upstream} and push to \texttt{origin}.
+
+\begin{note}
+GitHub accepts SSH (\texttt{git@github.com:\ldots}) or HTTPS
+(\texttt{https://github.com/\ldots}) addresses. SSH needs a key added to your
+GitHub account once; HTTPS needs a personal access token or the GitHub CLI
+(\cmd{gh auth login}) instead of a password. \tbd{which one the tutorial
+machines are set up for}
+\end{note}
+
+\section{Pull requests the ShipSoft way}
+\label{sec:pullrequests}
+
+A pull request (PR) asks the maintainers of \texttt{upstream} to take the
+commits of one of your branches. The rules below are the ones configured for
+the ShipSoft repositories (in \repo{.github}, \file{repo-config/}) and
+described in each package's \file{CONTRIBUTING.md}.
+
+\begin{enumerate}
+\item \textbf{Start from an up-to-date \texttt{main}}, on a new branch:
+\begin{shell}
+git switch main && git pull upstream main
+git switch -c fix-field-translation
+\end{shell}
+\item \textbf{Commit} in small, self-contained steps with Conventional-Commit
+  messages.
+\item \textbf{Push} the branch to your fork and \textbf{open the PR} against
+  \texttt{main} of the ShipSoft repository, on the page GitHub shows you after
+  the push, or with \cmd{gh pr create}. Say what the change does, why, and how
+  you tested it.
+\item \textbf{Checks.} Continuous integration builds and tests the branch
+  automatically. The required checks are called ``All checks passed'' and, in
+  most repositories, ``Lint passed''. A red check is yours to fix: push more
+  commits to the same branch and the PR updates. \Cref{ch:ci} shows how this
+  works.
+\item \textbf{Review.} At least one approving review is required, and every
+  review conversation must be resolved. A new push dismisses earlier
+  approvals, so the reviewer sees what is actually merged.
+\item \textbf{Up to date.} If \texttt{main} moved on in the meantime, the PR
+  must be brought up to date, by rebasing, exactly as Bob did in
+  \cref{ex:localserver}:
+\begin{shell}
+git fetch upstream
+git rebase upstream/main
+# run the tests again
+git push --force-with-lease
+\end{shell}
+\item \textbf{Merge.} An approved, green PR goes into the merge queue, which
+  rebases it onto \texttt{main}, runs the checks once more, and only then
+  lands it. Merge commits are not possible, and nobody, maintainers included,
+  can force-push to or delete \texttt{main}.
+\item \textbf{Afterwards} update your own copies and delete the branch:
+\begin{shell}
+git switch main && git pull upstream main && git push origin main
+git branch -d fix-field-translation
+\end{shell}
+\end{enumerate}
+
+\begin{organisernote}
+Rules as configured in \repo{.github} on 15 October 2026
+(\file{repo-config/ruleset-protect.json}, \file{ruleset-review.json},
+\file{repo-settings.json}): no merge commits; squash and rebase allowed;
+linear history; merge queue with method REBASE; strict required status
+checks ``All checks passed'' (and ``Lint passed'' for tier ``full''); one
+approval; stale approvals dismissed; review threads must be resolved;
+deletion and non-fast-forward pushes to the default branch blocked.
+Trout, \texttt{.github} and Documentation have no required checks; the
+forks EventCalc and ROOTEGPythia6 are not managed. Check again before the
+session.
+\end{organisernote}
+
+You will take a real pull request through all of these steps in
+\cref{ch:team}. Two things in step~4 still need explaining first: the
+environment the checks run in (\cref{ch:pixi}), and the checks themselves
+(\cref{ch:ci}).
+
+\section{Git cheat sheet}
+\label{sec:gitcheatsheet}
+
+\begin{center}\small
+\begin{tabularx}{\linewidth}{>{\ttfamily}l L}
+\toprule
+\normalfont\bfseries Command & \bfseries What it does \\
+\midrule
+git status                    & what changed, what is staged, which branch \\
+git diff [-{}-staged]         & changes not yet staged [already staged] \\
+git add <file>                & stage a change for the next commit \\
+git commit -m "type: summary" & record the staged changes \\
+git log -{}-oneline -{}-graph -{}-all & the history as a graph \\
+git restore <file>            & discard unstaged changes to a file \\
+git switch -c <branch>        & create a branch and switch to it \\
+git switch <branch>           & switch to an existing branch \\
+git fetch upstream            & download, change nothing locally \\
+git pull upstream main        & fetch and rebase the current branch onto it \\
+git rebase upstream/main      & replay your branch on the latest main \\
+git rebase -{}-continue / -{}-abort & after resolving a conflict / give up \\
+git push -u origin <branch>   & publish a branch to your fork \\
+git push -{}-force-with-lease & publish a rebased branch (yours only!) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{levelcheck}
+\begin{itemize}
+  \can clone, fetch, pull and push, and say what each one changes;
+  \can bring an out-of-date branch up to date with a rebase and push it
+       safely;
+  \can set up a fork with \texttt{origin} and \texttt{upstream};
+  \can list the steps a ShipSoft pull request goes through before it is
+       merged.
+\end{itemize}
+\end{levelcheck}
+
+\begin{solution}
+Every command sequence in \cref{ch:git,ch:branches,ch:remotes} and in
+\cref{ch:team} is exercised by \file{tests/test\_git\_workflow.sh} against
+local bare repositories standing in for GitHub, including Alice and Bob,
+an out-of-date PR, a rebase onto \texttt{upstream/main}, a conflict resolved
+with \cmd{git rebase -{}-continue}, and a merge queue that leaves no merge
+commits.
+\end{solution}

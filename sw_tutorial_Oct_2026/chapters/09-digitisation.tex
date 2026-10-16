@@ -1,0 +1,177 @@
+\chapter{Digitisation with Shannon}
+\label{ch:digitisation}
+
+\chaptergoals{9 of 11 in Part~II.}
+{\cref{ch:aegir}: \file{hnl\_sim.root}.}
+{digitise simulated hits, explain what the hit-stream output means for an analysis, and test the smearing.}
+
+\section{From energy deposits to detector hits}
+
+Geant4 tells us where charged particles deposited energy. A detector reports
+something else: which channel fired, when, and with what signal, after
+thresholds, noise, dead time, and the merging of nearby deposits into one
+channel. \emph{Digitisation} is the step that turns the first into the second,
+and \repo{Shannon} is the package that does it for SHiP. Its output provides the hit-stream interface being developed for reconstruction;
+a realistic electronics response and a real-data adapter are separate tasks.
+
+\pkg{Shannon} is a set of Phlex plugins, like \pkg{aegir}:
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{l l L}
+\toprule
+Plugin & Kind & Purpose \\
+\midrule
+\texttt{read\_sim\_file}            & source   & reads \texttt{sim\_hits} and \texttt{sim\_particles} from \pkg{aegir} output \\
+\texttt{digitise\_hits}             & transform& one digitiser per detector, chosen by \field{detectorId} \\
+\texttt{digitised\_output\_module}  & observer & one RNTuple per hit collection, validation histograms \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{What the digitisers do today}
+
+Every detector has its own digitiser class in \file{src/detectors/}, so that
+each detector group can develop its model independently. At the time of
+writing all five share a placeholder model:
+
+\begin{itemize}
+  \item each \texttt{SimHit} becomes exactly one detector hit;
+  \item $x$ and $y$ are smeared with a Gaussian of $\sigma = 0.1$\,mm
+        (\file{gaussian\_smearer.hpp}); $z$, the energy deposit, the momentum
+        and the truth links (\field{trackId}, \field{pdgCode}) are copied;
+  \item a time offset is added: \pkg{Shannon} places each simulated event at a
+        random time within the fraction of a spill that the simulated protons
+        on target correspond to (the \texttt{pot} parameter; a SPS spill is
+        1.2\,s for $4\times10^{13}$ protons).
+\end{itemize}
+
+There are no thresholds, no channel merging, no noise and no inefficiency yet.
+The structure is the point of this chapter, not the realism.
+
+\begin{note}
+Random numbers come from \pkg{ship-random}: two \texttt{PhiloxRng} streams per
+spill (one for the time offset, one for the smearing), keyed on the spill
+number. Digitisation is therefore reproducible for a given \texttt{seed},
+whatever the number of threads for a fixed input entry order. Reordering
+the simulation entries changes the event-to-random-stream assignment.
+\end{note}
+
+\section{Running it}
+
+The workflow is \file{code/workflows/hnl\_digi.jsonnet}:
+
+\codefile[linerange={17-70}]{jsonnet}{code/workflows/hnl_digi.jsonnet}
+
+\begin{exercise}{Digitise your simulated events}
+In the \pkg{Shannon} environment, from your working directory:
+\begin{shell}
+cd "$SHIP_TUTORIAL/Shannon"
+pixi shell
+cd "$SHIP_TUTORIAL/work"
+phlex -j 4 -c <(jsonnet \
+    --ext-str entries=100 \
+    --ext-str infile=hnl_sim.root \
+    --ext-str digiout=hnl_digi.root \
+    --ext-str histo=hnl_digi_validation.root \
+    $CODE/workflows/hnl_digi.jsonnet)
+\end{shell}
+Set \texttt{entries} to the number of events you simulated.
+\end{exercise}
+
+\begin{checkpoint}
+\file{hnl\_digi.root} and \file{hnl\_digi\_validation.root} exist. In
+Python, \texttt{ROOT.TFile("hnl\_digi.root").ls()} lists seven RNTuples, and
+\texttt{h\_straw\_tubes\_multiplicity} in the validation file shows the number
+of straw hits per event.
+\end{checkpoint}
+
+\begin{pitfall}
+``No digitiser registered for detector ID $n$'' means the simulation was run
+with an out-of-range detector ID. A reordered list using only IDs 0--4
+can silently dispatch to the wrong detector model (\cref{sec:sensitive}).
+\end{pitfall}
+
+\section{A stream of hits, not a list of events}
+\label{sec:digilayout}
+
+\pkg{Shannon} writes every collection as its own RNTuple with one entry per
+hit (\cref{sec:filelayout}). This is deliberate. SHiP reads out its detectors
+continuously, without a trigger: what the experiment records is a stream of
+time-stamped hits per detector, and grouping hits that belong together into
+candidate events, by time, is a task of reconstruction. The hit-stream interface is intended for both simulated and real inputs;
+that design does not make today's placeholder response equivalent to real data.
+
+For an analysis of \emph{simulated} events this has three consequences:
+
+\begin{enumerate}
+  \item \textbf{There is no event number.} A hit does not record which
+        simulated event it came from, and the writers fill from several
+        threads, so the order of entries does not follow the events either.
+  \item \textbf{The generator record and the event weight are not copied.}
+        \texttt{mc\_particles} and \texttt{event\_header} stay in the
+        simulation file.
+  \item \textbf{Truth links are kept per hit:} \field{trackId} and
+        \field{pdgCode} survive in \texttt{RecHit}, but track IDs are only
+        unique within one simulated event.
+\end{enumerate}
+
+Inclusive distributions over all hits, such as positions, times, energy
+deposits and resolutions, come from the digitised file. Questions about one
+simulated event, such as ``both daughters crossed four straw stations'' or
+``the SBT stayed silent'', are answered from the simulation file.
+\Cref{ch:analysis} is organised accordingly.
+
+\begin{organisernote}
+The hit-stream layout is intended (see the header comment of
+\file{Trout/src/io/read\_digitised\_hits.cpp}). What is missing for Monte
+Carlo studies is a way back from a digitised hit to its simulated event: with
+the default \texttt{pot}, every spill draws its time offset from the same
+0.3\,ns window, so neither time nor any field separates the events. A
+simulated-event index carried in the hit (or a truth-link collection), plus
+the weight, would let the analysis in \cref{ch:analysis} use digitised hits
+event by event. Worth raising with the \pkg{Shannon} developers; it is also a
+good topic for the closing discussion.
+\end{organisernote}
+
+\begin{exercise}{Check the smearing}
+Since \pkg{Shannon} copies $z$, the energy deposit and the truth links, many
+digitised hits can be paired by a composite key. Repeated keys are ambiguous
+because there is no event ID; the script excludes them. The script
+\file{code/analysis/digi\_residuals.py} does this for one collection and
+histograms the residual $x_\mathrm{digi} - x_\mathrm{sim}$:
+\begin{shell}
+python $CODE/analysis/digi_residuals.py hnl_digi.root --collection straw_tubes_hits
+\end{shell}
+Fit the residual distribution. Does the width match the smearing in
+\file{gaussian\_smearer.hpp}? Repeat for \texttt{timing\_detector\_hits}.
+\end{exercise}
+
+\begin{solution}
+With sufficient uniquely matched hits, both fitted widths should be
+compatible with 0.1\,mm, because all digitisers use the same default
+\texttt{GaussianSmearer}. Some hits may stay unpaired when two
+simulated hits share the same key; the script reports how many.
+\end{solution}
+
+\begin{exercise}[colback=white]{Optional: make the straw model your own}
+Real straws measure the distance of closest approach to the wire with a
+resolution of roughly 100--150\,\textmu m, perpendicular to the wire only.
+In your \pkg{Shannon} checkout, give the straw digitiser its own resolution:
+in \file{src/detectors/straw\_tubes.hpp} construct the smearer as
+\texttt{GaussianSmearer smearer\_\{0.12, 0.12\};}, then
+\begin{shell}
+pixi run build
+\end{shell}
+rerun the digitisation and the residual script, and check that only the
+straws changed. What would a realistic model need to know that a
+\texttt{SimHit} does not provide directly?
+\end{exercise}
+
+\begin{solution}
+The straw (wire) identity and orientation, which the hit's
+\field{geometryNodeId} or position must be mapped to through the geometry
+service; the drift-time relation; and the readout's time window. This is the
+kind of question that connects the digitisation to the geometry service and
+is a good lead-in to the reconstruction discussion.
+\end{solution}

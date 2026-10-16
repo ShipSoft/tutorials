@@ -1,0 +1,227 @@
+\chapter{Simulation with aegir}
+\label{ch:aegir}
+
+\chaptergoals{7 of 11 in Part~II: the first simulation.}
+{\cref{ch:geometry,ch:services,ch:generator}: the geometry, the field maps and a checked HNL sample.}
+{write and run a simulation workflow, choose the sensitive volumes, read the validation histograms, and reproduce a run exactly.}
+
+\section{What aegir is}
+
+\repo{aegir} is the SHiP simulation: a set of Phlex plugins that generate or
+read particles, transport them through the detector with Geant4, and write
+the result. A simulation job is a graph of four kinds of node:
+
+\begin{center}
+\begin{tikzpicture}[
+  every node/.style={font=\sffamily\small},
+  box/.style={draw=shipnavy,fill=codebg,rounded corners=2pt,
+    text width=35mm,minimum height=12mm,align=center},
+  job/.style={box,draw=shipblue,fill=shipblue!6,text width=55mm},
+  flow/.style={-{Stealth[length=2mm]},line width=0.7pt},
+  uses/.style={flow,dashed,color=shipblue}]
+  \node[box] (src) at (0,0) {source\\\scriptsize\texttt{file\_source}};
+  \node[box] (g4) at (5.2,0) {transform\\\scriptsize\texttt{geant4\_module}};
+  \node[box] (out) at (10.4,0) {observer\\\scriptsize\texttt{sim\_output\_module}};
+  \node[job] (geo) at (2.1,2.4) {job provider\\\scriptsize\texttt{geometry\_geomodel\_provider}};
+  \node[job] (fld) at (8.4,2.4) {job provider\\\scriptsize\texttt{field\_map\_provider}};
+  \draw[flow] (src) -- node[above,font=\scriptsize]{particles} (g4);
+  \draw[flow] (g4) -- node[above,font=\scriptsize]{sim\_result} (out);
+  \draw[uses] (geo.south) -- ([xshift=-7mm]g4.north);
+  \draw[uses] (fld.south) -- ([xshift=7mm]g4.north);
+  \draw[flow] (src.south) -- ++(0,-0.8) -|
+    node[pos=0.25,below,font=\scriptsize]{generator record + event header} (out.south);
+\end{tikzpicture}
+\end{center}
+
+Sources work per event; the geometry and the field are providers at the job
+level, built once and shared by all events. The plugins available are:
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{l l L}
+\toprule
+Plugin & Kind & Purpose \\
+\midrule
+\texttt{particle\_gun\_source}       & source   & single particles in a cone \\
+\texttt{pythia8\_source}             & source   & Pythia\,8 fixed-target collisions \\
+\texttt{fixed\_target\_source}       & source   & Pythia\,8 on tungsten, with the interaction point sampled in the target \\
+\texttt{genie\_reader\_source}       & source   & pre-generated GENIE neutrino interactions \\
+\texttt{file\_source}                & source   & \textbf{events read from a data-model file (our case)} \\
+\texttt{geometry\_builtin\_provider} & provider & a test geometry (tungsten block and silicon planes) \\
+\texttt{geometry\_gdml\_provider}    & provider & geometry from a GDML file \\
+\texttt{geometry\_geomodel\_provider}& provider & \textbf{the SHiP geometry via the geometry service} \\
+\texttt{field\_null\_provider}       & provider & no field \\
+\texttt{field\_map\_provider}        & provider & \textbf{field maps via the field service} \\
+\texttt{geant4\_module}              & transform& Geant4 transport, multi-threaded \\
+\texttt{sim\_output\_module}         & observer & RNTuple output and validation histograms \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{The HNL workflow}
+
+The workflow for this tutorial is \file{code/workflows/hnl\_sim.jsonnet}. The
+workflows shipped with \pkg{aegir} (in its \file{workflows/} directory) build
+jobs from the blocks in \file{lib.libsonnet}; this one spells everything out
+so that you can read the whole job in one place:
+
+\codefile[linerange={20-107}]{jsonnet}{code/workflows/hnl_sim.jsonnet}
+
+\section{Sensitive volumes}
+\label{sec:sensitive}
+
+In default scoring mode, Geant4 creates a \texttt{SimHit} for every
+positive-energy-deposit step a particle takes inside a
+\emph{sensitive} volume. \pkg{aegir} makes a logical volume sensitive when its
+name \emph{contains} one of the fragments in \texttt{sensitive\_volumes}, and
+records the \emph{index} of that fragment as \field{detectorId}. Three
+consequences:
+
+\begin{enumerate}
+  \item The order of the list is the detector numbering. \pkg{Shannon} reads
+        \field{detectorId} with the data model's \texttt{detector\_id} enum
+        (\cref{ch:datamodel}), so the list must be UBT, SBT, straws,
+        calorimeter, timing detector, and nothing else.
+  \item A fragment selects everything whose name contains it, including
+        passive volumes with similar names. In this workflow the UBT entry
+        also catches the air envelopes around the tiles, the SBT entry the
+        aluminium walls of the cells, and the calorimeter entry the lead and
+        iron absorbers (\cref{ex:sensitive}).
+  \item Volumes that match no fragment produce no hits at all. If a detector
+        is missing from the list, it is silently invisible.
+\end{enumerate}
+
+\begin{note}
+The \pkg{aegir} workflows that use the SHiP geometry ship with
+\texttt{sensitive\_volumes: ['ScoringPlane']}, which matches nothing in the
+real detector: they are set up for muon-flux studies at scoring planes, not
+for detector hits. The demonstration list in \file{hnl\_sim.jsonnet} preserves Shannon's
+numbering, but does not select active material exclusively.
+\end{note}
+
+\begin{organisernote}
+To our knowledge there is no reference workflow in \pkg{aegir} that maps the
+five detectors in the order \pkg{Shannon} expects; the list in
+\file{hnl\_sim.jsonnet} was written for this booklet from the volume names in
+\repo{Geometry}. Have the \pkg{aegir}/\pkg{Shannon} developers check it, and
+consider adding it to \pkg{aegir}'s \file{lib.libsonnet}.
+\end{organisernote}
+
+\begin{pitfall}
+The broad UBT, SBT and calorimeter prefixes also record passive-material
+energy deposits. Shannon smears them as if they were detector hits; the
+example analysis cannot distinguish them using detector ID alone. The veto
+and calorimeter response are therefore teaching proxies, not physical
+predictions. A production workflow needs active-volume selection with an
+explicit detector-ID mapping, or a geometry-aware hit filter.
+\end{pitfall}
+
+\section{Running it}
+
+\begin{exercise}{Simulate 100 HNL decays}
+\label{ex:sim100}
+Open a shell in the \pkg{aegir} environment and go to your working
+directory, which must contain \file{ship\_geometry.db}, the two field maps and
+\file{hnl\_events.root}:
+\begin{shell}
+cd "$SHIP_TUTORIAL/aegir"
+pixi shell
+cd "$SHIP_TUTORIAL/work"
+time phlex -j 4 -c <(jsonnet \
+    --ext-str events=100 \
+    --ext-str infile=hnl_events.root \
+    --ext-str simout=hnl_sim.root \
+    --ext-str histo=hnl_sim_validation.root \
+    $CODE/workflows/hnl_sim.jsonnet)
+\end{shell}
+Watch the log: the geometry is read and converted, the field maps are loaded
+and attached to their volumes, the Geant4 seed is printed, and then the event
+loop reports progress every 100 events.
+\end{exercise}
+
+\begin{checkpoint}
+Two new files, \file{hnl\_sim.root} and \file{hnl\_sim\_validation.root}, and
+no error. With the Python lines from \cref{ex:openfile},
+\file{hnl\_sim.root} shows 100 entries in the \texttt{events} RNTuple with the
+five fields of \cref{sec:filelayout}.
+\end{checkpoint}
+
+\begin{pitfall}
+The driver creates exactly \texttt{events} events whether or not the input has
+that many entries. Past the end of the file, \texttt{file\_source} publishes
+\emph{empty} events with weight~1. Always ask for at most as many events as
+the input holds (\cref{ex:checkinput} printed the number).
+\end{pitfall}
+
+\begin{exercise}{Read the validation histograms}
+\pkg{aegir} fills a few histograms as it runs. Open them with a ROOT browser:
+\begin{shell}
+root -l hnl_sim_validation.root
+root [1] new TBrowser
+\end{shell}
+\begin{enumerate}
+  \item \texttt{h\_hit\_detector}: which detector IDs occur, and roughly in
+        which proportions? Is any of the five missing?
+  \item \texttt{h\_hit\_z}: identify the straw stations, the timing detector
+        and the calorimeter. Are there hits upstream of the trackers, and from
+        which detector?
+  \item \texttt{h\_mc\_multiplicity}: every input event holds three
+        generator particles. Why does this histogram say two?
+\end{enumerate}
+\end{exercise}
+
+\begin{solution}
+\begin{enumerate}
+  \item IDs 2 (straws), 3 (calorimeter) and 4 (timing) dominate; 1 (SBT)
+        appears when a daughter or a secondary leaves through the vessel
+        walls. ID 0 (UBT) should be essentially absent: the UBT is upstream of
+        the decay volume.
+  \item Four clusters between 84 and 95.1\,m for the straws, one at about
+        96\,m for the timing detector, 96.9--99.8\,m for the calorimeter.
+        Hits upstream come from the SBT along the decay volume.
+  \item The validation histograms count final-state (status~1) entries only,
+        the ones Geant4 tracks; the decayed HNL is not one of them.
+\end{enumerate}
+\end{solution}
+
+
+\section{Reproducibility and threads}
+
+\begin{exercise}{Same seed, same events}
+Rename your output, run the same command again, and compare selected per-event summaries
+with the summary script from \cref{ch:analysis}, or simply compare the
+validation histograms. Then run once more with \cmd{-j 1} and once with
+\cmd{--tla-code seed=1} added to the \cmd{jsonnet} command.
+\begin{shell}
+python $CODE/analysis/sim_summary.py hnl_sim.root hnl_sim_run2.root
+\end{shell}
+Which summaries agree exactly, and which differ? Equal summaries are a
+smoke check, not proof that every field in the two files is identical.
+\end{exercise}
+
+\begin{solution}
+For a fixed software build and identical inputs, the expected result is
+matching event content with the default seed, also with \cmd{-j 1}:
+Geant4 is reseeded per event from (seed, event index), so neither the number
+of threads nor the order in which events finish changes any event. The
+entries can still be in a different order in the file, which is why
+\file{sim\_summary.py} compares per-event quantities keyed by
+\field{event\_number}. The run with \cmd{seed=1} differs event by event but
+should be statistically compatible; a small sample is not a precision test.
+\end{solution}
+
+\section{Going further}
+
+\begin{exercise}[colback=white]{Optional: switch the field off}
+Make a copy of the workflow that uses \texttt{field\_null\_provider} (no
+configuration keys) instead of \texttt{field\_map\_provider}, simulate the
+same events into \file{hnl\_sim\_nofield.root}, and keep the file: you will
+look at the difference in the event display (\cref{ch:display}) and in the
+analysis (\cref{ch:analysis}).
+\end{exercise}
+
+\begin{exercise}[colback=white]{Optional: full statistics}
+Simulate the whole input file in the background while you continue with the
+next chapters. With \cmd{-j} set to the number of cores of your machine this
+takes \tbd{time for the provided sample}.
+\end{exercise}

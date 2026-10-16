@@ -1,0 +1,56 @@
+{
+  "review_date": "2026-10-15",
+  "method": "GitHub main snapshots fetched and inspected; not an integration build",
+  "sources": [
+    {
+      "repo": "EventCalc",
+      "sha": "7c9be2ad88ee26873d3667a3c283f3f9c0decb9d",
+      "date": "2026-09-19T20:30:37Z"
+    },
+    {
+      "repo": "Geometry",
+      "sha": "32dde5e21331edcf04b55be0afd833527de10131",
+      "date": "2026-10-13T20:07:53Z"
+    },
+    {
+      "repo": "Shannon",
+      "sha": "908bccf8ba212d3d0fd1d0de30bbd62f5373dc04",
+      "date": "2026-10-14T14:46:29Z"
+    },
+    {
+      "repo": "Trout",
+      "sha": "5c0d1e4c33fe9de6c89aa9c8abd42a94121fdd76",
+      "date": "2026-10-14T21:27:08Z"
+    },
+    {
+      "repo": "aegir",
+      "sha": "43d0a32a60d37916876ec3ce8d6055a462e4108b",
+      "date": "2026-10-15T11:32:29Z"
+    },
+    {
+      "repo": "data-model",
+      "sha": "09fb209fbb4fefd6f7dedaee98a3ce3631e3ceca",
+      "date": "2026-10-13T13:30:06Z"
+    },
+    {
+      "repo": "field_service",
+      "sha": "474d8028508fe105199db61b89ba2f8ccd24cd3e",
+      "date": "2026-10-13T17:35:19Z"
+    },
+    {
+      "repo": "geometry_service",
+      "sha": "5afd27373e6da298b25d1b9a1946aaba375bf51e",
+      "date": "2026-10-12T10:49:35Z"
+    },
+    {
+      "repo": "sea-cucumber",
+      "sha": "bb2b0bbf64d8a7b97ea813e2a8faf6e7de5664b4",
+      "date": "2026-09-28T05:32:10Z"
+    },
+    {
+      "repo": ".github",
+      "sha": "a788c399d8fc5521e40ef1f8e3fd0df3f8a306db",
+      "date": "2026-10-13T20:41:51Z"
+    }
+  ]
+}

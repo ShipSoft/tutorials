@@ -1,0 +1,204 @@
+\chapter{The detector description}
+\label{ch:geometry}
+
+\chaptergoals{3 of 11 in Part~II: the first package of the chain.}
+{\cref{ch:bigpicture}.}
+{build \file{ship\_geometry.db}, find any volume and its position, and name the volumes that will record hits.}
+
+\section{GeoModel in a nutshell}
+
+The SHiP detector is described with
+\href{https://geomodel.web.cern.ch}{GeoModel}, the geometry toolkit developed
+for ATLAS. A GeoModel description is ordinary C++ that builds a tree of
+volumes:
+
+\begin{itemize}
+  \item a \emph{shape} (\texttt{GeoBox}, \texttt{GeoTubs}, \texttt{GeoTrap},
+        \ldots) gives the extent;
+  \item a \emph{logical volume} (\texttt{GeoLogVol}) adds a name and a
+        material;
+  \item a \emph{physical volume} (\texttt{GeoPhysVol}, or
+        \texttt{GeoFullPhysVol} when its global position must be retrievable)
+        places a logical volume, with a transform, inside its mother.
+\end{itemize}
+
+The tree is built once and written to a single SQLite file,
+\file{ship\_geometry.db}. Every downstream package (simulation, event display,
+reconstruction) reads that file, so they all see exactly the same detector.
+
+In \repo{Geometry} each subsystem is a factory class in
+\file{subsystems/<Name>/} whose \texttt{build()} returns the subsystem's
+top volume; \texttt{SHiPGeometryBuilder} creates the world (the cavern) and
+places each subsystem at its $z$ position. Materials are defined once, in
+\texttt{SHiPMaterials}.
+
+\section{Coordinates, units and names}
+\label{sec:coordinates}
+
+\begin{center}
+\begin{tabularx}{0.9\linewidth}{lL}
+\toprule
+Origin   & front face of the target (the first tungsten disk) \\
+$z$      & along the beam, positive downstream \\
+$y$      & vertical, pointing up \\
+$x$      & horizontal, completing a right-handed system \\
+Units    & millimetres and radians (GeoModel's native units) \\
+Beam axis& 1.7\,m above the cavern floor \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Volume names follow a path convention: \texttt{/SHiP/<subsystem>/<part>}, for
+example \texttt{/SHiP/trackers/straw\_gas} or
+\texttt{/SHiP/timing\_detector/bar}. Downstream code selects volumes by
+matching on these names, so they matter: you will use them in
+\cref{ch:aegir} to tell Geant4 which volumes are sensitive.
+
+\section{What is implemented}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{l l L}
+\toprule
+Subsystem & Status & Content \\
+\midrule
+Cavern            & complete          & world volume with the rock cavities subtracted \\
+Target            & complete          & 33 tungsten disks in a grooved steel core, jacket and endcap \\
+Muon shield       & approximate       & 6 stations; box approximations of the real shapes \\
+Neutrino detector & approximate       & veto, Si/W target, HCAL with individual fibres \\
+Magnet            & approximate       & iron yoke, box-shaped coils \\
+Decay volume      & implemented       & frustum: SBT steel structure, liquid-scintillator (LAB) cells, helium \\
+Upstream tagger   & simulation-ready  & 4.4\,$\times$\,6.4\,m plane of 47\,000 polystyrene tiles \\
+Trackers          & complete          & 4 stations $\times$ 4 stereo views, 9600 straws \\
+Timing detector   & complete          & 330 scintillator bars \\
+Calorimeter       & simulation-ready  & ECAL and HCAL sampling layers \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The status column is taken from the \repo{Geometry} README, where each
+subsystem links to its own README with the volume tree and materials. The
+nominal envelope of every subsystem (where it starts and ends in $z$, how wide
+it is) is tabulated in \file{subsystem\_envelopes.csv} in the same repository.
+
+\section{Building the geometry}
+
+\begin{exercise}{Build \file{ship\_geometry.db}}
+In your \file{Geometry} checkout:
+\begin{shell}
+pixi run geometry
+ls -lh build/ship_geometry.db
+\end{shell}
+The \cmd{geometry} task compiles the package and runs
+\cmd{build/apps/build\_geometry build/ship\_geometry.db}. Copy the result to
+your working directory, where all later chapters expect it:
+\begin{shell}
+cp build/ship_geometry.db "$SHIP_TUTORIAL/work/"
+\end{shell}
+\end{exercise}
+
+\begin{note}
+The \texttt{shipgeometry} conda package installs \cmd{build\_geometry} too,
+so in the \pkg{aegir} environment \cmd{pixi run build\_geometry} writes the
+same file into the current directory without compiling anything. Building
+from the \repo{Geometry} checkout is what you do once you change the
+description.
+\end{note}
+
+\begin{exercise}{Validate it}
+\begin{shell}
+pixi run ./build/apps/validate_geometry build/ship_geometry.db
+\end{shell}
+The validator checks the database structure and prints the volumes, the
+materials and the positions it finds. Skim the material list: which material
+fills the decay volume, and which fills the straws?
+\end{exercise}
+
+\begin{solution}
+The centre of the decay volume is helium; the straws contain the straw gas
+volume \texttt{/SHiP/trackers/straw\_gas} inside a mylar wall
+(\texttt{/SHiP/trackers/straw\_wall}). The SBT cells are LAB (liquid
+scintillator).
+\end{solution}
+
+\section{Looking at the geometry}
+
+\cmd{gmex}, the GeoModel explorer, opens a \file{.db} file directly:
+\begin{shell}
+pixi run gmex build/ship_geometry.db
+\end{shell}
+In the volume tree on the left, expand \texttt{/SHiP}, tick the subsystems
+you want to see and use the mouse to rotate and zoom.
+
+\begin{exercise}{Find the decay volume}
+Open the geometry in \cmd{gmex}. Show only the decay volume, the trackers and
+the calorimeter. Roughly where in $z$ does the decay volume start and end?
+Then check your estimate against \file{subsystem\_envelopes.csv}.
+\end{exercise}
+
+\begin{solution}
+From the envelope table: upstream tagger 32.52--32.92\,m, decay volume and
+SBT 32.92--83.32\,m, tracker stations at 83.57--84.57, 85.57--86.57,
+92.57--93.57 and 94.57--95.57\,m around the spectrometer magnet
+(87.07--92.07\,m), timing detector 95.82--96.32\,m, ECAL and HCAL from
+96.87 to 99.77\,m.
+\end{solution}
+
+The event display can print the same information as text, which is quicker
+for scripting:
+
+\begin{shell}
+cd "$SHIP_TUTORIAL/sea-cucumber"
+pixi run sc --geometry ../work/ship_geometry.db --inspect 4
+pixi run sc --geometry ../work/ship_geometry.db --inspect 6 --inspect-match "*trackers*"
+\end{shell}
+
+The number after \cmd{--inspect} is the depth of the tree to walk;
+\cmd{--inspect-match} restricts the listing to names matching a pattern.
+
+\begin{exercise}{The sensitive volumes}
+\label{ex:sensitive}
+In its default scoring mode, Geant4 records positive-energy-deposit steps
+only in volumes declared sensitive, and in
+\cref{ch:aegir} you will declare them by name. Using \cmd{--inspect},
+\cmd{gmex}, or the subsystem READMEs, find a name fragment that selects the
+active material of each of these five detectors. Decide whether a single
+substring can select it without also selecting passive material:
+\begin{enumerate}[label=(\alph*)]
+  \item the upstream background tagger (UBT) tiles;
+  \item the surround background tagger (SBT) liquid-scintillator cells;
+  \item the gas of the straw tubes;
+  \item the calorimeter's scintillator layers;
+  \item the timing-detector bars.
+\end{enumerate}
+\end{exercise}
+
+\begin{solution}
+Names as built by the factories in \repo{Geometry}:
+\begin{enumerate}[label=(\alph*)]
+  \item tiles are \texttt{/SHiP/upstream\_tagger/fine\_tile} and
+        \texttt{/SHiP/upstream\_tagger/coarse\_tile}; the air envelopes
+        holding them end in \texttt{\_env}.
+  \item cells are named
+        \texttt{/SHiP/decay\_volume/sbt/sensors\_\ldots\_C<n>}; the aluminium
+        walls of the same containers end in \texttt{\_W<n>}.
+  \item \texttt{/SHiP/trackers/straw\_gas}.
+  \item scintillators are \texttt{/SHiP/calorimeter/wide\_pvt\_\{h,v\}\ldots}
+        and \texttt{/SHiP/calorimeter/thin\_ps\_\{h,v\}\ldots}; absorbers are
+        \texttt{lead\_plate} and \texttt{iron\_plate}.
+  \item \texttt{/SHiP/timing\_detector/bar}.
+\end{enumerate}
+The point of the exercise is the discussion in \cref{sec:sensitive}: Geant4
+matches \emph{substrings}, one fragment per detector, so for (a), (b) and (d)
+there is no single fragment that selects only the active parts. The workflow
+in \cref{ch:aegir} uses the subsystem prefixes and accepts the extra hits in
+passive material.
+\end{solution}
+
+\begin{organisernote}
+Exercise~\ref{ex:sensitive} has no clean answer for three detectors with the
+current naming. Ask the Geometry and Shannon developers whether the factories
+should add a common tag to the active volumes (e.g.\ \texttt{\_sens}) before
+the tutorial; if they do, update \file{code/workflows/hnl\_sim.jsonnet} and
+this solution.
+\end{organisernote}
