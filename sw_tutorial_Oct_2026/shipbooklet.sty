@@ -1,0 +1,273 @@
+% SPDX-FileCopyrightText: 2026 CERN for the benefit of the SHiP Collaboration
+% SPDX-License-Identifier: CC-BY-4.0
+%
+% shipbooklet.sty -- layout, boxes and code listings for the SHiP software
+% tutorial booklet. Compiles with pdflatex, lualatex, xelatex or tectonic.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{shipbooklet}[2026/10/15 SHiP tutorial booklet style]
+
+% ---------------------------------------------------------------------------
+% Options: participant (default) or organiser edition
+% ---------------------------------------------------------------------------
+\newif\iforganiser
+\organiserfalse
+\DeclareOption{organiser}{\organisertrue}
+\DeclareOption{participant}{\organiserfalse}
+\ProcessOptions\relax
+
+% ---------------------------------------------------------------------------
+% Fonts: use nicer fonts when the TeX installation has them, fall back to the
+% PSNFSS defaults otherwise. Engine-independent for pdflatex and tectonic.
+% ---------------------------------------------------------------------------
+\RequirePackage{iftex}
+\ifPDFTeX
+  \RequirePackage[T1]{fontenc}
+  \RequirePackage[utf8]{inputenc}
+  \IfFileExists{lmodern.sty}{\RequirePackage{lmodern}}{}
+  \IfFileExists{sourcesanspro.sty}%
+    {\RequirePackage[default]{sourcesanspro}}%
+    {\IfFileExists{charter.sty}{\RequirePackage{charter}}{}%
+     \IfFileExists{helvet.sty}{\RequirePackage[scaled=0.92]{helvet}}{}}
+  \IfFileExists{inconsolata.sty}%
+    {\RequirePackage[scaled=0.95]{inconsolata}}%
+    {\IfFileExists{courier.sty}{\RequirePackage{courier}}{}}
+\else
+  \RequirePackage{fontspec}
+\fi
+
+% ---------------------------------------------------------------------------
+% Core packages
+% ---------------------------------------------------------------------------
+\RequirePackage[a4paper,inner=24mm,outer=20mm,top=24mm,bottom=26mm]{geometry}
+\RequirePackage{microtype}
+\RequirePackage{xcolor}
+\RequirePackage{graphicx}
+\RequirePackage{booktabs}
+\RequirePackage{tabularx}
+\RequirePackage{longtable}
+\RequirePackage{needspace}
+\RequirePackage{array}
+\RequirePackage{enumitem}
+\RequirePackage{amsmath}
+\RequirePackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,shapes.geometric,fit,backgrounds,calc}
+\RequirePackage{listings}
+\RequirePackage[most]{tcolorbox}
+\RequirePackage{hyperref}
+\RequirePackage{xurl}
+\RequirePackage[nameinlink,noabbrev]{cleveref}
+
+\graphicspath{{figures/}{../}}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\newcolumntype{P}[1]{>{\raggedright\arraybackslash}p{#1}}
+% No --/-- ligatures in typewriter text: command-line options stay readable.
+\ifPDFTeX\DisableLigatures[-]{encoding=*,family=tt*}\fi
+\setlist{itemsep=2pt,topsep=4pt}
+\setlength{\emergencystretch}{3em}  % long \texttt paths break lines
+
+% ---------------------------------------------------------------------------
+% Accessible blue/neutral palette. Meaning is always stated in text;
+% no red/green distinctions. Dark title fills retain white-text contrast.
+% ---------------------------------------------------------------------------
+\definecolor{shipnavy}{HTML}{162A3A}
+\definecolor{shipblue}{HTML}{005A82}
+\definecolor{shippink}{HTML}{005A82}
+\definecolor{shipcream}{HTML}{E9EEF2}
+\definecolor{codebg}{HTML}{F4F6F8}
+\definecolor{codeframe}{HTML}{A9B2BC}
+\definecolor{codecomment}{HTML}{495563}
+\definecolor{codestring}{HTML}{544273}
+\definecolor{okgreen}{HTML}{334B5C}
+\definecolor{warnorange}{HTML}{664B20}
+\definecolor{todored}{HTML}{703C30}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=shipblue,
+  urlcolor=shipblue,
+  citecolor=shipblue,
+  pdfauthor={M.Climescu (matclim@cern.ch)},
+  pdfsubject={SHiP software tutorial},
+}
+
+% KOMA heading colours
+\RedeclareSectionCommand[beforeskip=8pt,afterskip=14pt]{chapter}
+\addtokomafont{disposition}{\color{shipnavy}}
+\addtokomafont{chapterprefix}{\color{shippink}}
+\setkomafont{descriptionlabel}{\normalfont\bfseries\color{shipnavy}}
+
+% ---------------------------------------------------------------------------
+% Inline markup
+% ---------------------------------------------------------------------------
+\newcommand{\pkg}[1]{\textsf{\bfseries #1}}           % a SHiP package
+\newcommand{\file}[1]{\texttt{#1}}                    % a file or path
+\newcommand{\cmd}[1]{\texttt{#1}}                     % a command or key
+\newcommand{\field}[1]{\texttt{#1}}                   % a data-model field
+\newcommand{\repo}[1]{\href{https://github.com/ShipSoft/#1}{\texttt{ShipSoft/#1}}}
+\newcommand{\doxy}[1]{\href{https://shipsoft.github.io/#1/}{class reference}}
+\newcommand{\GeV}{\,\mathrm{GeV}}
+\newcommand{\HNL}{\ensuremath{N}}
+\newcommand{\pimu}{\ensuremath{\pi^{\pm}\mu^{\mp}}}
+
+% Things the organisers still have to fill in. Red in both editions, so that
+% nothing unfinished goes to print unnoticed; `make check` greps for them.
+\newcommand{\tbd}[1]{{\color{todored}\textbf{[TBD:~#1]}}}
+
+% ---------------------------------------------------------------------------
+% Boxes
+% ---------------------------------------------------------------------------
+\tcbset{
+  shipbox/.style={
+    enhanced, breakable=false, boxrule=0.6pt, arc=2pt, left=6pt, right=6pt,
+    top=4pt, bottom=4pt, fonttitle=\bfseries\sffamily,
+    before skip=8pt, after skip=8pt},
+}
+
+% Numbered exercise, per chapter
+\newtcolorbox[auto counter, number within=chapter]{exercise}[2][]{%
+  shipbox, colback=shipcream!35, colframe=shippink,
+  title={Exercise~\thetcbcounter: #2}, #1}
+
+% Short "you should now see..." check
+\newtcolorbox{checkpoint}[1][]{%
+  shipbox, colback=okgreen!5, colframe=okgreen,
+  title={Checkpoint}, #1}
+
+% Background or a pointer to more detail
+\newtcolorbox{note}[1][]{%
+  shipbox, colback=shipblue!5, colframe=shipblue,
+  title={Note}, #1}
+
+% Something that will bite you
+\newtcolorbox{pitfall}[1][]{%
+  shipbox, colback=warnorange!6, colframe=warnorange,
+  title={Pitfall}, #1}
+
+% Commit graphs in the git chapters
+\tikzset{
+  commit/.style={circle, draw=shipnavy, fill=white, line width=0.6pt,
+    minimum size=6.5mm, inner sep=0pt, font=\sffamily\scriptsize},
+  rewritten/.style={commit, dashed, fill=shipcream},
+  mergecommit/.style={commit, fill=shipcream, line width=1pt},
+  ref/.style={draw=shipblue, rounded corners=1pt, fill=shipblue!8,
+    font=\ttfamily\scriptsize, inner sep=2pt},
+  parent/.style={-{Stealth[length=1.6mm]}, color=shipnavy},
+}
+
+% Progression: what a chapter assumes and what it teaches, at its start ...
+\newtcolorbox{goalsbox}[1][]{%
+  shipbox, colback=white, colframe=shipnavy, boxrule=0.5pt,
+  title={Where you are}, #1}
+\newcommand{\chaptergoals}[3]{%
+  \begin{goalsbox}\small
+  \textbf{Step:} #1\par\smallskip
+  \textbf{You need:} #2\par\smallskip
+  \textbf{You will be able to:} #3
+  \end{goalsbox}}
+% ... and a self-check at its end, before the next step builds on it.
+\newtcolorbox{levelcheck}[1][]{%
+  shipbox, colback=shipcream!45, colframe=shipblue,
+  title={Before you move on, check that you can}, #1}
+\newcommand{\can}{\item[{\setlength{\fboxsep}{0pt}\fbox{\rule{0pt}{1.3ex}\hspace{1.3ex}}}]}
+
+% Organiser-only material: solutions and running notes. Swallowed entirely in
+% the participant edition.
+\iforganiser
+  \newtcolorbox{solution}[1][]{%
+    shipbox, colback=shipnavy!4, colframe=shipnavy,
+    title={Solution (organiser edition)}, #1}
+  \newtcolorbox{organisernote}[1][]{%
+    shipbox, colback=todored!4, colframe=todored!70!black,
+    title={Organiser note}, #1}
+\else
+  \RequirePackage{environ}
+  \NewEnviron{solution}[1][]{}
+  \NewEnviron{organisernote}[1][]{}
+\fi
+
+% ---------------------------------------------------------------------------
+% Code listings
+% ---------------------------------------------------------------------------
+\lstdefinelanguage{jsonnet}{
+  morekeywords={local,import,importstr,function,if,then,else,for,in,self,super,
+    true,false,null,std,error,assert},
+  sensitive=true,
+  morecomment=[l]{//},
+  morecomment=[l]{\#},
+  morecomment=[s]{/*}{*/},
+  morestring=[b]',
+  morestring=[b]",
+}
+\lstdefinelanguage{json}{
+  morekeywords={true,false,null},
+  sensitive=true,
+  morestring=[b]",
+}
+\lstdefinelanguage{yaml}{
+  keywords={true,false,null},
+  sensitive=true,
+  comment=[l]{\#},
+  morestring=[b]',
+  morestring=[b]",
+}
+\lstdefinelanguage{toml}{
+  morekeywords={true,false},
+  sensitive=true,
+  morecomment=[l]{\#},
+  morestring=[b]",
+  morestring=[b]',
+}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  columns=fullflexible,
+  keepspaces=true,
+  keywordstyle=\color{shipblue}\bfseries,
+  commentstyle=\color{codecomment}\itshape,
+  stringstyle=\color{codestring},
+  showstringspaces=false,
+  breaklines=true,
+  breakatwhitespace=false,
+  postbreak=\mbox{\textcolor{shippink}{$\hookrightarrow$}\space},
+  upquote=true,
+  tabsize=2,
+  literate={-}{{-}}1 {~}{{\textasciitilde}}1,
+  frame=single,
+  framesep=4pt,
+  rulecolor=\color{codeframe},
+  backgroundcolor=\color{codebg},
+  xleftmargin=4pt,
+  xrightmargin=4pt,
+  aboveskip=8pt,
+  belowskip=8pt,
+}
+\lstdefinestyle{shell}{language=bash, morekeywords={pixi,phlex,jsonnet,cmake,git,
+  python,python3,gmex,sc,ctest}}
+\lstdefinestyle{output}{language={}, backgroundcolor=\color{white},
+  basicstyle=\ttfamily\footnotesize, frame=leftline, rulecolor=\color{okgreen}}
+
+\lstnewenvironment{shell}[1][]{\lstset{style=shell,#1}}{}
+\lstnewenvironment{cpp}[1][]{\lstset{language=C++,#1}}{}
+\lstnewenvironment{py}[1][]{\lstset{language=Python,#1}}{}
+\lstnewenvironment{jsonnetcode}[1][]{\lstset{language=jsonnet,#1}}{}
+\lstnewenvironment{tomlcode}[1][]{\lstset{language=toml,#1}}{}
+\lstnewenvironment{outputlisting}[1][]{\lstset{style=output,#1}}{}
+
+% Include a file from code/ and label it with its path, so the reader knows
+% which file in the repository to open.
+\newcommand{\codefile}[3][]{%
+  \lstinputlisting[language=#2,title={\small\sffamily\color{shipnavy}\file{\detokenize{#3}}},#1]{#3}}
+
+% ---------------------------------------------------------------------------
+% Running headers
+% ---------------------------------------------------------------------------
+\RequirePackage[automark,headsepline]{scrlayer-scrpage}
+\clearpairofpagestyles
+\ohead{\small\headmark}
+\setlength{\headheight}{18pt}
+\raggedbottom
+\ofoot*{\pagemark}
+\ifoot*{\small\sffamily\color{shipblue}SHiP software tutorial%
+  \iforganiser\ \textcolor{todored}{-- organiser edition}\fi}
+
+\endinput

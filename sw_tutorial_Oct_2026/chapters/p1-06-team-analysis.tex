@@ -1,0 +1,289 @@
+\chapter{A team analysis: the mystery resonance}
+\label{ch:team}
+
+\chaptergoals{6 of 6 in Part~I: everything together.}
+{\cref{ch:git,ch:branches,ch:remotes,ch:pixi,ch:ci}; a GitHub account; some
+Python. Still no SHiP software: the team repository brings its own pixi
+environment with PyROOT.}
+{take one piece of a shared analysis from an empty function to a merged pull
+request, through local tests, CI and review, while the team's analysis grows
+with every merge.}
+
+The whole group writes one small analysis together. Each person writes one
+piece, in a pull request that CI checks and a teammate reviews, and the
+analysis only works when everybody's pieces fit. The exercise runs in rounds;
+each round uses one of the earlier chapters.
+
+\begin{center}\small
+\begin{tabular}{l l l}
+\toprule
+Round & What you do & Uses \\
+\midrule
+0 & fork, clone, install the environment & \cref{ch:remotes,ch:pixi} \\
+1 & write and test your task on your machine & \cref{ch:git,ch:pixi} \\
+2 & open the pull request, get the checks green & \cref{ch:remotes,ch:ci} \\
+3 & review, rebase, merge & \cref{ch:branches,ch:remotes} \\
+4 & watch the analysis grow & \cref{ch:remotes,ch:pixi} \\
+5 & find the particle & PyROOT \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{The data}
+
+The file \file{mystery.root} holds 20\,000 measurements of the invariant mass
+of the decay products of an unknown particle, in GeV. They are stored in an
+RNTuple called \texttt{events}, with a single field, \texttt{mass}, of type
+\texttt{float}. The line shape is a relativistic resonance, described by a
+Breit--Wigner distribution:
+\[
+  f(m) \;=\; \frac{1}{\pi}\,\frac{\Gamma/2}{(m-M)^2 + \Gamma^2/4},
+\]
+with mass $M$ and width $\Gamma$ (the full width at half maximum). Your team
+has to measure $M$ and $\Gamma$ with their uncertainties, make a plot of the
+fit, and find out which particle this is. Nobody is told the answer.
+
+\section{One script, ten tasks}
+
+The analysis lives in one file, \file{mystery\_analysis.py}, in a repository
+of its own, the \emph{team repository} (\cref{sec:teamsetup}). It is cut into ten tasks, each one a Python
+function that is empty to start with:
+
+\begin{center}\small
+\begin{tabularx}{\linewidth}{r l L}
+\toprule
+& Function & Input $\to$ Output \\
+\midrule
+1  & \texttt{open\_file}         & file name $\to$ RNTuple reader \\
+2  & \texttt{read\_masses}       & reader $\to$ list of masses \\
+3  & \texttt{summarise}          & masses $\to$ count, mean, median, central 68\% interval \\
+4  & \texttt{book\_histogram}    & summary $\to$ empty histogram \texttt{h\_mystery} \\
+5  & \texttt{fill\_histogram}    & histogram, masses $\to$ filled histogram \\
+6  & \texttt{make\_model}        & histogram $\to$ Breit--Wigner \texttt{f\_func} with starting values \\
+7  & \texttt{fit\_model}         & histogram, model $\to$ fit result \\
+8  & \texttt{extract\_results}   & fitted model $\to$ mass, width, errors, fit quality \\
+9  & \texttt{identify\_particle} & results $\to$ best-matching known particle \\
+10 & \texttt{save\_plot}         & histogram, model, results $\to$ \file{mystery\_fit.pdf} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Above each function, a comment gives the contract: what the function
+receives (\emph{Input}), what it must return (\emph{Output}), the ROOT calls
+that are useful (\emph{Relevant}), some \emph{Hints}, and how to test it. It
+tells you what to use, not what to write. Task~7, for example:
+
+\codefile[linerange={193-214},basicstyle=\ttfamily\footnotesize]{Python}{code/teamwork/template/mystery_analysis.py}
+
+The contract is what makes the pieces fit: the owner of task~8 relies on task~7
+returning exactly what its Output line promises. Do not rename your function or
+change its arguments, and keep your code between the two marker lines.
+
+\subsection*{Running the chain}
+
+At the bottom of the file, a function written by the organisers calls the ten
+tasks in order. It stops, without an error, at the first task that is not
+written yet:
+
+\begin{outputlisting}
+$ pixi run analysis
+Pixi task (analysis): python mystery_analysis.py
+--- task  1/10: open_file
+mystery.root: 20000 entries in 'events'
+--- task  2/10: read_masses
+--- task  3/10: summarise
+  n = 2e+04, min = 20.03, max = 199.7, mean = ..., median = ...
+--- task  4/10: book_histogram
+--- task  5/10: fill_histogram
+--- task  6/10: make_model is not written yet; the chain stops here (5 of 10 tasks done)
+\end{outputlisting}
+
+Every merged pull request lets the chain run one step further, until it ends
+with \texttt{all 10 tasks done}.
+
+\subsection*{Testing your task on its own}
+
+You do not have to wait for your teammates. \file{check\_task.py} tests one
+task with inputs it makes up itself, from a toy Breit--Wigner sample whose
+answer it knows ($M = 50$\,GeV, $\Gamma = 4$\,GeV: \emph{not} the mystery
+particle), and checks your function's Output against its contract:
+
+\begin{outputlisting}
+$ pixi run check-task 4
+Pixi task (check-task): python check_task.py 4
+task  4: FAILED
+      the histogram must be named 'h_mystery', got 'h'
+$ pixi run check-task 4
+Pixi task (check-task): python check_task.py 4
+task  4: passed
+\end{outputlisting}
+
+The same checker, for all ten tasks at once, is what CI runs on every pull
+request (\cref{sec:teamci}).
+
+\section{Who does what}
+\label{sec:teamroles}
+
+With ten participants, everyone takes one task. With fewer, some take two or
+three neighbouring tasks; with more, pairs share a task, or the extra people
+take the bonus tasks of \cref{sec:bonus}.
+
+\begin{center}\small
+\begin{tabular}{c l}
+\toprule
+People & Tasks per person \\
+\midrule
+10 & 1 \,|\, 2 \,|\, 3 \,|\, 4 \,|\, 5 \,|\, 6 \,|\, 7 \,|\, 8 \,|\, 9 \,|\, 10 \\
+9  & 1 \,|\, 2 \,|\, 3 \,|\, 4 \,|\, 5 \,|\, 6 \,|\, 7 \,|\, 8+9 \,|\, 10 \\
+8  & 1 \,|\, 2+3 \,|\, 4 \,|\, 5 \,|\, 6 \,|\, 7 \,|\, 8+9 \,|\, 10 \\
+7  & 1 \,|\, 2+3 \,|\, 4+5 \,|\, 6 \,|\, 7 \,|\, 8+9 \,|\, 10 \\
+6  & 1+2+3 \,|\, 4+5 \,|\, 6 \,|\, 7 \,|\, 8+9 \,|\, 10 \\
+5  & 1+2+3 \,|\, 4+5 \,|\, 6 \,|\, 7+8 \,|\, 9+10 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Your reviewer is the owner of the next task}, the person who will use
+what your function returns (task~10 is reviewed by the owner of task~1).
+Write your name and your reviewer's next to your task in the table of the
+repository's \file{README.md}, in your first commit.
+
+\Needspace{12\baselineskip}
+\section{Round 0: the repository and its environment}
+\label{sec:teamworkflow}
+
+Fork the team repository on GitHub (``Fork'' button), then:
+\begin{shell}
+git clone git@github.com:<you>/<team-repo>.git
+cd <team-repo>
+git remote add upstream git@github.com:<organisers>/<team-repo>.git
+pixi install                                # Python and ROOT, from pixi.lock
+cp <wherever-it-is>/mystery.root .          # data: not under version control
+pixi run analysis                           # stops at task 1 for now
+pixi run check                              # 10 not written yet, 0 failed
+\end{shell}
+\cmd{pixi task list} shows what else the repository offers.
+
+\begin{checkpoint}
+\cmd{pixi run analysis} stops at task~1 without an error, and
+\cmd{pixi run check} reports \texttt{0 passed, 10 not written yet, 0 failed}.
+\end{checkpoint}
+
+\Needspace{12\baselineskip}
+\section{Round 1: your task, on your machine}
+
+One branch, one task:
+\begin{shell}
+git switch -c task-04-book-histogram        # task-NN-short-description
+# ... write your function, and your name in README.md ...
+pixi run check-task 4                       # until it says "passed"
+pixi run lint                               # until ruff is happy
+git add mystery_analysis.py README.md
+git commit -m "feat(task-04): book the mystery histogram"
+\end{shell}
+Commit as often as you like on your branch: small steps are easier to review
+and to undo.
+
+\Needspace{12\baselineskip}
+\section{Round 2: the pull request and its checks}
+
+\begin{shell}
+git push -u origin task-04-book-histogram
+\end{shell}
+Open the pull request against \texttt{main} of the team repository (the page
+GitHub shows after the push has a button for it). Describe what you did,
+paste the output of \cmd{pixi run check-task 4}, and ask your reviewer for a
+review.
+
+CI starts by itself (\cref{sec:teamci}). Wait for ``All checks passed''. If it
+is red, open the log of the failing job, reproduce the failure with the same
+pixi task on your machine, fix it, commit, and \cmd{git push}: the pull
+request updates and CI runs again.
+
+\Needspace{12\baselineskip}
+\section{Round 3: review, rebase, merge}
+
+\paragraph{As a reviewer.} Read the change in the ``Files changed'' tab. Does
+it do what the contract says, and nothing else? Would you, as the next task's
+owner, be happy to receive its output? Comment on lines you do not
+understand. Approve only when you are satisfied and the checks are green.
+
+\paragraph{As an author.} Answer every comment, change what needs changing,
+and push again; a new push dismisses earlier approvals, so ask for a new one.
+
+\paragraph{When your pull request is out of date.} Every merge moves
+\texttt{main} forward, and GitHub then asks for your branch to be brought up
+to date. Rebase:
+\begin{shell}
+git fetch upstream
+git rebase upstream/main
+pixi run check-task 4
+git push --force-with-lease
+\end{shell}
+Since every task lives in its own function, this rebase almost never
+conflicts. If it does, \cref{sec:mergerebase} explains what to do. An
+approved, green, up-to-date pull request is merged by the organisers (or by
+the merge queue, if the repository has one).
+
+\Needspace{12\baselineskip}
+\section{Round 4: watch the analysis grow}
+
+After every merge, everybody can run the team's analysis as far as it goes:
+\begin{shell}
+git switch main && git pull upstream main
+pixi run analysis
+git switch task-04-book-histogram           # back to your own work
+\end{shell}
+
+\section{Round 5: the answer}
+
+\begin{exercise}{Find the mystery particle}
+When the chain reaches \texttt{all 10 tasks done}, open
+\file{mystery\_fit.pdf}.
+\begin{enumerate}
+  \item What are the mass and the width, with their uncertainties?
+  \item Which particle is it? Is the fitted width compatible with that
+        particle's, too, or only the mass?
+  \item Is the fit good? Look at $\chi^2/\mathrm{ndf}$ and at the tails on a
+        logarithmic scale.
+  \item Change one thing at a time (the binning in task~4, chi-square versus
+        likelihood in task~7, the starting values in task~6) and rerun. Which
+        changes move the result by more than its uncertainty?
+\end{enumerate}
+\end{exercise}
+
+\section{Bonus tasks}
+\label{sec:bonus}
+
+For those who finish early, or for an eleventh and twelfth participant. Each
+is a separate pull request.
+
+\begin{description}[style=nextline]
+\item[B1: pulls] Under the plot, add a second pad with
+  $(n_i - f(m_i))/\sigma_i$ per bin. Does the model describe the tails?
+\item[B2: chi-square versus likelihood] Fit with and without the \texttt{"L"}
+  option and tabulate both results. Which is biased, and why, for bins with
+  few entries?
+\item[B3: a background] The organisers have a second sample,
+  \file{mystery\_bkg.root}, with a falling background under the peak. Add an
+  exponential to the model (\texttt{"[0]*TMath::BreitWigner(x,[1],[2]) +
+  [3]*exp(-[4]*x)"}) and compare the result with and without it.
+\item[B4: detector resolution] Real detectors smear the mass. The sample
+  \file{mystery\_res.root} has a Gaussian resolution added; fit it with a
+  Voigt profile (\texttt{TMath::Voigt}), the convolution of a Breit--Wigner
+  with a Gaussian. What happens to the width if you ignore the resolution?
+\end{description}
+
+\section{Setting it up}
+\label{sec:teamsetup}
+
+The team repository is \tbd{URL of the team repository}. It starts from the
+files in \file{code/teamwork/template/}: the skeleton
+\file{mystery\_analysis.py}, the checker \file{check\_task.py}, the pixi
+manifest \file{pixi.toml} with its lock file, the lint settings
+\file{ruff.toml}, the CI workflow \file{.github/workflows/ci.yml}, a
+\file{README.md} with the task table, the rules in \file{CONTRIBUTING.md}, and
+a \file{.gitignore} that keeps data, plots and \file{.pixi/} out of the
+history.
+
+\iforganiser\input{code/teamwork/organiser/team-organiser}\fi

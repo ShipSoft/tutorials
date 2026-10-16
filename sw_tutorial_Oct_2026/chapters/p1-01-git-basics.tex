@@ -1,0 +1,156 @@
+\chapter{Git on your own}
+\label{ch:git}
+
+\chaptergoals{1 of 6 in Part~I: the first of three git chapters.}
+{a terminal, and \cmd{git} (\cmd{git -{}-version} prints 2.23 or later).
+Nothing else: no GitHub account, no SHiP software.}
+{keep the history of your own work: make commits, look back at them, undo
+mistakes, and keep data out of the repository.}
+
+Every SHiP package lives in a git repository on GitHub, under
+\href{https://github.com/ShipSoft}{\texttt{github.com/ShipSoft}}, and every
+change to it arrives as a pull request. Part~I builds up to that in small
+steps. This chapter is git on your own machine only; \cref{ch:branches} adds
+branches, \cref{ch:remotes} other people and GitHub, \cref{ch:pixi,ch:ci} the
+environment and the automatic checks around it, and \cref{ch:team} puts
+everything together.
+
+\section{What git keeps}
+
+A git repository is a history of \emph{snapshots} of a directory. Each
+snapshot is a \emph{commit}: the complete state of every tracked file, an
+author, a date, a message, and a pointer to the commit it was made from (its
+\emph{parent}). A commit is named by its hash, such as \texttt{c8dfe70}, which
+is computed from all of this, so a commit can never change: ``changing'' one
+means making a new commit with a new hash.
+
+You work in three places:
+
+\begin{center}
+\begin{tikzpicture}[
+  area/.style={draw=shipnavy, fill=shipcream, rounded corners=2pt, minimum width=32mm,
+    minimum height=11mm, align=center, font=\sffamily\small},
+  move/.style={-{Stealth[length=2mm]}, line width=0.7pt, color=shipnavy},
+  back/.style={move, dashed},
+  lab/.style={font=\ttfamily\scriptsize, inner sep=1.5pt, fill=white}]
+  \node[area] (wt) {working tree\\\scriptsize the files you edit};
+  \node[area, right=22mm of wt] (ix) {staging area\\\scriptsize the next commit};
+  \node[area, right=22mm of ix] (repo) {repository\\\scriptsize all commits};
+  \draw[move] (wt) -- node[lab, above] {git add} (ix);
+  \draw[move] (ix) -- node[lab, above] {git commit} (repo);
+  \draw[back] (ix.south) to[bend left=20] node[lab, pos=0.5] {git restore -{}-staged} (wt.south);
+  \draw[back] (repo.south) to[bend left=32] node[lab, pos=0.5] {git restore -{}-source} ([xshift=-6mm]wt.south);
+\end{tikzpicture}
+\end{center}
+
+\texttt{git add} chooses what goes into the next commit; \texttt{git commit}
+records it. Because you choose, one commit can hold one logical change even if
+you edited several things.
+
+\section{First steps}
+
+\begin{exercise}{Your first repository}
+\label{ex:gitfirst}
+Tell git who you are (once per machine), then make a repository:
+\begin{shell}
+git config --global user.name "Your Name"
+git config --global user.email "your.name@cern.ch"
+git config --global init.defaultBranch main
+git config --global pull.rebase true
+mkdir git-playground && cd git-playground
+git init
+echo "print('hello')" > hello.py
+git status                       # hello.py is "untracked"
+git add hello.py
+git commit -m "feat: say hello"
+git log --oneline
+\end{shell}
+\end{exercise}
+
+\begin{note}
+Use the e-mail address of your GitHub account, so that GitHub can attach your
+commits to you later. \cmd{pull.rebase true} only matters from
+\cref{ch:remotes} on; \cref{sec:mergerebase} explains why SHiP wants it.
+\end{note}
+
+\begin{exercise}{Stage, look, undo}
+Change \file{hello.py} to print \texttt{'hello, SHiP'}.
+\begin{enumerate}
+  \item \cmd{git status} and \cmd{git diff}: what does git say changed?
+  \item \cmd{git add hello.py}, then \cmd{git diff} and
+        \cmd{git diff -{}-staged}. Why is the first one empty now?
+  \item Unstage with \cmd{git restore -{}-staged hello.py}, then throw the
+        change away with \cmd{git restore hello.py}. Check with
+        \cmd{cat hello.py}.
+\end{enumerate}
+\end{exercise}
+
+\begin{pitfall}
+\cmd{git restore <file>} discards your uncommitted changes to that file for
+good: git never saw them, so it cannot give them back. What has been
+committed, on the other hand, is very hard to lose.
+\end{pitfall}
+
+\section{Good commits}
+
+\paragraph{One change per commit.} A commit should do one thing that you can
+describe in one line: easier to review, to understand later, and to undo.
+
+\paragraph{Commit messages.} The SHiP repositories follow
+\href{https://www.conventionalcommits.org}{Conventional Commits}: a type, an
+optional scope, and a short summary in the imperative.
+\begin{center}\small
+\begin{tabularx}{\linewidth}{>{\ttfamily}l L}
+\toprule
+feat(task-07): fit with a Poisson likelihood & a new feature \\
+fix(field): place the map at the magnet centre & a bug fix \\
+docs: explain the sensitive-volume order & documentation only \\
+refactor:\ test:\ style:\ chore: & restructuring, tests, formatting, housekeeping \\
+\bottomrule
+\end{tabularx}
+\end{center}
+The release changelogs are generated from these messages, and in the ShipSoft
+repositories an automatic check rejects pull requests whose commits do not
+follow the convention (\cref{ch:ci}).
+
+\begin{exercise}{Read the history}
+Make two more commits in \file{git-playground}: change the message printed by
+\file{hello.py}, and add a second file. Then:
+\begin{shell}
+git log --oneline              # one line per commit, newest first
+git show HEAD                  # the latest commit: message and change
+git log -p hello.py            # every change ever made to one file
+git diff HEAD~2 HEAD           # everything between two commits ago and now
+\end{shell}
+\texttt{HEAD} is the commit you are on; \texttt{HEAD\textasciitilde1} its
+parent, \texttt{HEAD\textasciitilde2} its grandparent. Get an old version of a
+file back with \cmd{git restore -{}-source HEAD\textasciitilde2 hello.py},
+then commit it, or restore it again from \texttt{HEAD}.
+\end{exercise}
+
+\section{What not to commit}
+
+Data, plots and build products do not belong in git: they are large, they
+change with every run, and they can be made again from the code. List them
+in a file called \file{.gitignore}, and git stops offering them to you.
+
+\begin{exercise}{Ignore the outputs}
+\begin{shell}
+touch data.root plot.pdf
+git status                     # both are offered as "untracked"
+printf '*.root\n*.pdf\n' > .gitignore
+git status                     # now only .gitignore is
+git add .gitignore && git commit -m "chore: ignore data and plots"
+\end{shell}
+\end{exercise}
+
+\begin{levelcheck}
+\begin{itemize}
+  \can make a repository, stage exactly the changes you want, and commit them
+       with a Conventional-Commit message;
+  \can see what changed (\cmd{status}, \cmd{diff}, \cmd{diff -{}-staged}) and
+       read the history (\cmd{log}, \cmd{show});
+  \can undo an uncommitted change, and get an old version of a file back;
+  \can keep data and outputs out of the repository with \file{.gitignore}.
+\end{itemize}
+\end{levelcheck}

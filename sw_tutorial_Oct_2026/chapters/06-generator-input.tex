@@ -1,0 +1,137 @@
+\chapter{The HNL sample}
+\label{ch:generator}
+
+\chaptergoals{6 of 11 in Part~II.}
+{\cref{ch:datamodel}.}
+{read EventCalc's conventions (weights, frames, units), and check an input sample before simulating it.}
+
+\section{EventCalc}
+
+\repo{EventCalc} generates decays of long-lived particles inside the SHiP
+decay volume and computes how many such decays to expect. It does not
+simulate the detector: it produces truth-level momenta and decay positions,
+which is exactly what a detector simulation needs as input. For every mass
+$m$ and proper decay length $c\tau$ it
+
+\begin{enumerate}
+  \item interpolates tabulated production probabilities and angle--energy
+        distributions of the long-lived particle;
+  \item samples momenta pointing towards the decay volume;
+  \item samples decay positions from the exponential decay law along the
+        volume, and applies its transverse shape;
+  \item generates the decay in the rest frame from the matrix element
+        (hadronising with Pythia\,8 or exHad where needed) and boosts it to the
+        laboratory;
+  \item combines production, geometric acceptance, decay probability and
+        branching ratio into the expected number of decays.
+\end{enumerate}
+
+For the HNL the input is the mixing pattern
+$(\xi_e, \xi_\mu, \xi_\tau)$ with $\xi_e+\xi_\mu+\xi_\tau=1$ and
+$U_\alpha^2 = U^2 \xi_\alpha$. The tutorial sample uses pure muon mixing and
+the two charge-conjugate channels, \texttt{Pimu} ($\pi^+\mu^-$) and
+\texttt{Pimubar} ($\pi^-\mu^+$). A launch card for such a sample looks like
+this:
+
+\codefile{json}{code/eventcalc/hnl_pimu.json}
+
+\begin{shell}
+python3 simulate.py --card "$CODE/eventcalc/hnl_pimu.json"
+\end{shell}
+
+\begin{note}
+The card requests 10\,000 events (mass 1\,GeV, $c\tau=100$\,m);
+this does not establish the provenance of the distributed ROOT file.
+Record the actual sample settings: \tbd{mass, $c\tau$, number of
+events, EventCalc version}. You do not need to run EventCalc during the
+tutorial; the card above is for reference.
+\end{note}
+
+\subsection{What comes out}
+
+EventCalc writes a text file per mass--lifetime point. Its header line gives
+the numbers needed for a yield: the total number of HNLs produced, the polar
+and azimuthal acceptance, the mean decay probability, the visible branching
+ratio and their product, the expected number of decays $N_\mathrm{exp}$. Each
+event row then holds the HNL four-momentum, mass, decay probability
+$P_\mathrm{decay}$ and decay position, followed by the daughters'
+four-momenta, masses and PDG codes. Two conventions matter:
+
+\begin{itemize}
+  \item \textbf{Every event has a weight}, $w = P_\mathrm{decay}$, the
+        probability that this HNL decays inside the volume. Distributions must
+        be filled with it, and the expected number of decays satisfying a
+        selection is
+        \[
+          N_\mathrm{sel} = N_\mathrm{exp}\,
+          \frac{\sum_{i\in\mathrm{sel}} w_i}{\sum_{i} w_i}.
+        \]
+  \item \textbf{Positions are in metres, measured from the centre of the
+        target}, while the SHiP geometry uses millimetres from its front face
+        (\cref{sec:coordinates}).
+\end{itemize}
+
+\section{From EventCalc to the data model}
+
+\pkg{aegir} reads generator events from a ROOT file in the SHiP data model
+(\cref{sec:filelayout}). The converter used for the tutorial sample
+\tbd{name, location, author} produces, for each EventCalc event, one entry of
+the \texttt{events} RNTuple with:
+
+\begin{itemize}
+  \item \texttt{mc\_particles}: the HNL with status~2, followed by its
+        daughters with status~1 and \field{motherId}~$=0$. Daughters carry
+        the decay position as their \field{vertex}, in mm in the geometry's
+        frame, and their total energy in GeV;
+  \item \texttt{event\_header}: \field{weight}~$=P_\mathrm{decay}$ and
+        \field{original\_event\_id} set to the original generator index.
+        Keep \field{mothers} consistent with \field{motherId}: daughters
+        have \field{mothers}~$=\{0\}$, and the motherless HNL has an empty list.
+\end{itemize}
+
+\begin{organisernote}
+Confirm with the converter: (1) the frame shift from the EventCalc origin
+(target centre) to the geometry origin (target front face) is applied, and
+in which direction; (2) the HNL PDG code written; (3) where the header numbers
+needed for $N_\mathrm{exp}$ end up, since the analysis in \cref{ch:analysis}
+takes $N_\mathrm{exp}$ as a command-line argument. Note also that
+EventCalc's own decay-volume model (\file{funcs/ship\_setup.py}: $z$ from 32
+to 82\,m) is not identical to the geometry's (32.92 to 83.32\,m); the check
+below shows how many vertices fall outside.
+\end{organisernote}
+
+\begin{exercise}{Check the input before simulating it}
+\label{ex:checkinput}
+A wrong frame or a missing weight is much cheaper to find now than after the
+simulation. Run the checker in \file{work/}:
+\begin{shell}
+python $CODE/analysis/check_input.py hnl_events.root
+\end{shell}
+\begin{enumerate}
+  \item Which particles will Geant4 track, and do all of them have a mother?
+  \item Is there an \texttt{event\_header}? What is the range of the weights?
+  \item What fraction of decay vertices lies outside the nominal longitudinal range?
+        What would a fraction close to 100\% tell you?
+\end{enumerate}
+\end{exercise}
+
+\begin{checkpoint}
+Only pion--muon pairs $(211,13)$ or $(-211,-13)$ are tracked, none without a mother; the header is
+present and the weights lie between 0 and 1; the checker reports how many vertices pass
+$32.92 < z < 83.32$\,m. This is a longitudinal check, not full containment.
+\end{checkpoint}
+
+\begin{solution}
+Vertices concentrated just outside the volume, or all shifted by about half a
+target length, mean the frame shift was not applied (or applied with the
+wrong sign). Do not assume a per-mille mismatch: its size depends on the coordinate
+transform, lifetime, boost distribution and the two geometry definitions.
+Measure it. A cut can remove sampled vertices outside the desired region;
+it cannot recover unsampled parts of that region or repair the absolute
+normalisation. Regenerate consistently for a full-geometry yield.
+\end{solution}
+
+The script is short; read it. It shows the basic pattern for reading these
+files from Python, which you will use again in \cref{ch:analysis}:
+
+\codefile[linerange={56-79}]{Python}{code/analysis/check_input.py}

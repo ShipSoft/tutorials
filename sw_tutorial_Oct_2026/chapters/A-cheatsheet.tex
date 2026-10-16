@@ -1,0 +1,102 @@
+\chapter{Command reference}
+\label{app:cheatsheet}
+
+Commands assume the environment of the package named in the heading
+(\cmd{pixi shell} in its checkout), \file{work/} as the current directory
+except Geometry build commands, which run in its checkout, and \texttt{\$CODE} pointing to
+\file{framework-booklet/code} in the supplied archive.
+
+\section*{git \hfill\normalfont\small(\cref{ch:git,ch:branches,ch:remotes}; full table in \cref{sec:gitcheatsheet})}
+\begin{shell}
+git switch main && git pull upstream main         # start from the latest main
+git switch -c task-NN-description                 # one branch per change
+git add FILE && git commit -m "feat(scope): summary"
+git push -u origin task-NN-description            # then open the pull request
+git fetch upstream && git rebase upstream/main    # PR out of date
+git push --force-with-lease                       # after a rebase (your branch only)
+\end{shell}
+
+\section*{pixi \hfill\normalfont\small(\cref{ch:pixi})}
+\begin{shell}
+pixi init && pixi add python "root_base>=6.36"    # a new workspace
+pixi install [--locked]                           # create the environment [exactly as locked]
+pixi run <task or command>                        # one command in the environment
+pixi shell                                        # an interactive shell in it; exit to leave
+pixi task add <name> "<command>"                  # name a command
+pixi run -e lint lint                             # a task in another environment
+pixi update                                       # newer versions: commit the new pixi.lock
+\end{shell}
+
+\section*{CI \hfill\normalfont\small(\cref{ch:ci})}
+\begin{shell}
+pixi run --locked <task>                          # reproduce a CI step locally
+pixi run lint                                     # what "Lint passed" checks, before you push
+\end{shell}
+
+\section*{Team analysis \hfill\normalfont\small(\cref{ch:team}, in the team repository)}
+\begin{shell}
+pixi run check-task NN                            # test your task alone
+pixi run check                                    # test every task (as CI does)
+pixi run analysis                                 # run the chain as far as it goes
+\end{shell}
+
+\section*{Geometry \hfill\normalfont\small(\repo{Geometry})}
+\begin{shell}
+pixi run geometry                                 # -> build/ship_geometry.db
+pixi run ./build/apps/validate_geometry build/ship_geometry.db
+pixi run gmex build/ship_geometry.db                             # interactive viewer
+pixi run gdml                                     # -> build/ship_geometry.gdml
+\end{shell}
+
+\section*{Field maps \hfill\normalfont\small(\repo{field\_service})}
+\begin{shell}
+fieldmap_dump MAP.root                            # metadata
+echo "0 0 0" | fieldmap_dump MAP.root NAME        # evaluate at points (mm -> T)
+plot_field_map MAP.root NAME plots.root           # B_y plots, ROOT + PDF
+generate_constant_fieldmap OUT.root NAME Bx By Bz xmin xmax ymin ymax zmin zmax
+fairship_to_fieldmap [--symmetry quadrant_dipole] IN.root OUT.root
+\end{shell}
+
+\section*{Input check}
+Use the frozen PyROOT/data-model environment.
+\begin{shell}
+python $CODE/analysis/check_input.py hnl_events.root
+\end{shell}
+
+\section*{Simulation \hfill\normalfont\small(\repo{aegir})}
+\begin{shell}
+phlex -j 4 -c <(jsonnet --ext-str events=N --ext-str infile=hnl_events.root \
+    --ext-str simout=hnl_sim.root --ext-str histo=hnl_sim_validation.root \
+    [--tla-code seed=S] $CODE/workflows/hnl_sim.jsonnet)
+python $CODE/analysis/sim_summary.py hnl_sim.root [other.root]
+\end{shell}
+
+\section*{Event display \hfill\normalfont\small(\repo{sea-cucumber}, run in its checkout)}
+\begin{shell}
+pixi run sc --geometry DB --data hnl_sim.root --view views/default.toml --event I
+pixi run sc --geometry DB --inspect 4 [--inspect-match "*trackers*"]
+pixi run geo-cache --geometry DB --view views/default.toml
+pixi run web-data --geometry DB --data hnl_sim.root --view views/default.toml --events all
+pixi run web                                      # http://localhost:8080
+\end{shell}
+
+\section*{Digitisation \hfill\normalfont\small(\repo{Shannon})}
+\begin{shell}
+phlex -j 4 -c <(jsonnet --ext-str entries=N --ext-str infile=hnl_sim.root \
+    --ext-str digiout=hnl_digi.root --ext-str histo=hnl_digi_validation.root \
+    $CODE/workflows/hnl_digi.jsonnet)
+python $CODE/analysis/digi_residuals.py hnl_digi.root --collection straw_tubes_hits
+\end{shell}
+
+\section*{Analysis}
+\begin{shell}
+python $CODE/analysis/hnl_analysis.py hnl_sim.root [--n-expected N] [--sbt-threshold GeV]
+python $CODE/analysis/solutions/vertex_from_hits.py hnl_sim.root
+\end{shell}
+
+\section*{Looking inside any file}
+\begin{py}
+import ROOT
+r = ROOT.RNTupleReader.Open("events", "hnl_sim.root")   # or "straw_tubes_hits", ...
+r.PrintInfo(); r.Show(0)
+\end{py}

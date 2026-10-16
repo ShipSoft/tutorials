@@ -1,0 +1,168 @@
+\chapter*{How to use this booklet}
+\addcontentsline{toc}{chapter}{How to use this booklet}
+\markboth{How to use this booklet}{How to use this booklet}
+
+This booklet accompanies the hands-on tutorial on the new SHiP software
+framework. It is built as a sequence of small steps (\cref{fig:roadmap}): every
+chapter says at its start what it needs and what you will be able to do
+afterwards, and ends with a short self-check. Each step uses only what the
+steps before it taught.
+
+Part~I is the way of working, with no SHiP software yet: git on your own, then
+with branches, then with other people and pull requests; pixi environments;
+continuous integration; and finally a small analysis that the whole group
+writes together, one reviewed and CI-checked pull request per person.
+Part~II follows one physics example from beginning to end: a heavy neutral
+lepton (HNL, \HNL) produced in the SHiP target that decays to \pimu{} inside
+the decay volume. Every chapter of Part~II adds one piece of the software
+chain, and each piece consumes what the previous one produced.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+  rstep/.style={draw=shipnavy, fill=white, rounded corners=2pt, minimum height=8mm,
+    text width=21mm, align=center, font=\sffamily\scriptsize, inner sep=2pt,
+    execute at begin node={\hyphenpenalty=10000\exhyphenpenalty=10000}},
+  capstone/.style={rstep, fill=shipcream, line width=0.9pt},
+  next/.style={-{Stealth[length=1.6mm]}, color=shipnavy},
+  partlabel/.style={font=\sffamily\small\bfseries, anchor=west, color=shipnavy}]
+  % Part I: two rows of three
+  \node[partlabel] at (-1.25,0.85) {Part I: working together};
+  \node[rstep] (g1) at (0,0)   {\ref{ch:git}\enspace git on your own};
+  \node[rstep] (g2) at (2.6,0) {\ref{ch:branches}\enspace branches, merge, rebase};
+  \node[rstep] (g3) at (5.2,0) {\ref{ch:remotes}\enspace remotes, pull requests};
+  \node[rstep] (px) at (7.8,0) {\ref{ch:pixi}\enspace pixi environments};
+  \node[rstep] (ci) at (10.4,0) {\ref{ch:ci}\enspace continuous integration};
+  \node[capstone] (tm) at (13.0,0) {\ref{ch:team}\enspace team analysis};
+  \foreach \a/\b in {g1/g2, g2/g3, g3/px, px/ci, ci/tm} \draw[next] (\a) -- (\b);
+  % Part II: two rows
+  \node[partlabel] at (0.35,-1.15) {Part II: the SHiP software chain};
+  \node[rstep] (s1) at (0,-2)    {\ref{ch:setup}\enspace SHiP environment};
+  \node[rstep] (s2) at (2.6,-2)  {\ref{ch:bigpicture}\enspace the big picture};
+  \node[rstep] (s3) at (5.2,-2)  {\ref{ch:geometry}\enspace Geometry};
+  \node[rstep] (s4) at (7.8,-2)  {\ref{ch:services}\enspace geometry and field services};
+  \node[rstep] (s5) at (10.4,-2) {\ref{ch:datamodel}\enspace data model};
+  \node[rstep] (s6) at (13.0,-2) {\ref{ch:generator}\enspace the HNL sample};
+  \node[rstep] (s7) at (13.0,-3.3) {\ref{ch:aegir}\enspace aegir simulation};
+  \node[rstep] (s8) at (10.4,-3.3) {\ref{ch:display}\enspace \mbox{sea-cucumber} display};
+  \node[rstep] (s9) at (7.8,-3.3)  {\ref{ch:digitisation}\enspace Shannon digitisation};
+  \node[capstone] (s10) at (5.2,-3.3) {\ref{ch:analysis}\enspace HNL analysis};
+  \node[rstep, dashed] (s11) at (2.6,-3.3) {\ref{ch:outlook}\enspace Trout: discussion};
+  \foreach \a/\b in {s1/s2, s2/s3, s3/s4, s4/s5, s5/s6, s6/s7, s7/s8, s8/s9, s9/s10, s10/s11}
+    \draw[next] (\a) -- (\b);
+  \draw[next, dashed] (tm.south) -- ++(0,-0.35) -| (s1.north);
+\end{tikzpicture}
+\caption{The steps of the tutorial, numbered by chapter. Each step builds on
+the one before it; the shaded steps are the two places where everything
+learnt so far comes together. Part~II starts once Part~I is done.}
+\label{fig:roadmap}
+\end{figure}
+
+\begin{pitfall}
+This is a reviewed teaching draft, not an end-to-end validated release.
+The archive contains no HNL ROOT sample or EventCalc converter, field maps,
+or frozen common environment. The supplied workflow also selects passive
+material in some detectors. Its cut flow illustrates the interfaces; it is
+not a detector efficiency or sensitivity result. See \cref{app:review}
+for the checked source revisions and remaining prerequisites.
+\end{pitfall}
+
+\section*{What you will learn}
+
+\begin{itemize}
+  \item how to work with git and GitHub the way the ShipSoft repositories
+        do: commits, branches, merging versus rebasing, remotes, forks and
+        pull requests with review (\cref{ch:git,ch:branches,ch:remotes});
+  \item how to describe and reproduce a software environment with pixi:
+        manifest, lock file, tasks and environments (\cref{ch:pixi});
+  \item how continuous integration checks every pull request, with GitHub
+        Actions as in the ShipSoft repositories (\cref{ch:ci});
+  \item how to build an analysis as a team, one reviewed, CI-checked pull
+        request per person, by fitting a mystery resonance with PyROOT
+        (\cref{ch:team});
+  \item how the SHiP detector is described in \pkg{GeoModel}
+        (\repo{Geometry}) and how other packages reach it through the
+        \pkg{geometry service} (\repo{geometry\_service});
+  \item how magnetic field maps are stored and served
+        (\repo{field\_service});
+  \item what the event data model looks like on disk (\repo{data-model});
+  \item how to simulate events with \pkg{aegir} (\repo{aegir}), the
+        Phlex-based simulation built on Geant4;
+  \item how to look at them with the event display \pkg{sea-cucumber}
+        (\repo{sea-cucumber});
+  \item how to digitise them with \pkg{Shannon} (\repo{Shannon});
+  \item how to analyse the resulting files directly from Python.
+\end{itemize}
+
+Reconstruction (\pkg{Trout}) is not part of the hands-on programme; it is the
+subject of the closing discussion (\cref{ch:outlook}).
+
+\section*{Conventions}
+
+Commands to type in a terminal look like this:
+\begin{shell}
+pixi run phlex -c <(jsonnet hnl_sim.jsonnet)
+\end{shell}
+Illustrative output is shown with a vertical rule on the left; exact log text may differ:
+\begin{outputlisting}
+[info] sim_output_module: writing 'hnl_sim.root' ...
+\end{outputlisting}
+
+Package names are set in \pkg{bold sans serif}, files as \file{path/to/file},
+and data-model fields as \field{pdgCode}. Lengths are in millimetres,
+momenta and energies in GeV, and times in nanoseconds throughout, matching the
+software. The coordinate system is the one of the SHiP geometry: the origin is
+the front face of the target, $z$ points downstream along the beam, $y$
+points up (\cref{sec:coordinates}).
+
+The boxes have fixed meanings:
+
+\begin{exercise}{Something for you to do}
+Exercises are numbered by chapter. Most take five to fifteen minutes.
+\end{exercise}
+
+\begin{checkpoint}
+What you should see when the exercise worked. If you do not, ask a tutor
+before moving on: later chapters use the files you make here.
+\end{checkpoint}
+
+\begin{note}
+Background, or where to read more.
+\end{note}
+
+\begin{pitfall}
+A mistake that is easy to make, and how to recognise it.
+\end{pitfall}
+
+\iforganiser
+\begin{organisernote}
+This is the organiser edition. It contains the solutions to every exercise
+and notes for the tutors, in boxes like this one. The participant edition is
+built from the same sources without them (\file{booklet.tex}; this edition is
+\file{booklet-organiser.tex}). Items still to be decided are marked
+\tbd{like this} in both editions; \cmd{make check} lists them.
+\end{organisernote}
+\fi
+
+\section*{The files you need}
+
+The runnable configurations and analysis scripts are supplied in the
+\file{framework-booklet/code/} directory of the accompanying archive.
+Inline API excerpts are explanatory. Extract the archive, then run:
+
+\begin{shell}
+cd framework-booklet
+export CODE="$PWD/code"
+export SHIP_TUTORIAL="$(dirname "$PWD")/ship-tutorial"
+mkdir -p "$SHIP_TUTORIAL/work"
+\end{shell}
+The commands in this booklet refer to that directory as \texttt{\$CODE}; set
+both variables again in every new terminal. Use Bash for commands containing
+\texttt{<(...)}, and exit a package shell before activating another.
+
+\section*{Getting help}
+
+Each package documents its classes in a Doxygen reference linked from its
+README, and the collaboration-wide documentation lives at
+\url{https://shipsoft.github.io/Documentation/}. Please report mistakes in this
+booklet to \href{mailto:matclim@cern.ch}{matclim@cern.ch}.

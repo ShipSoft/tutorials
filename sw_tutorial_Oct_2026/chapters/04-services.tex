@@ -1,0 +1,223 @@
+\chapter{The geometry and field services}
+\label{ch:services}
+
+\chaptergoals{4 of 11 in Part~II.}
+{\cref{ch:geometry} (\file{ship\_geometry.db}); the field maps from \cref{ch:setup}.}
+{explain how other packages reach the geometry and the magnetic field, and inspect, evaluate and plot a field map.}
+
+The geometry file and the field maps are just data. Two small libraries turn
+them into something a simulation or reconstruction can use, without tying
+either to a particular framework: neither library includes a Phlex header, so
+these libraries can serve simulation, reconstruction and standalone programs.
+The current \pkg{sea-cucumber} implementation opens GeoModelIO directly; its
+optional geometry-service binding is still a stub.
+
+\section{The geometry service}
+\label{sec:geosvc}
+
+\repo{geometry\_service} wraps the GeoModel description behind one abstract
+interface, modelled on DD4hep's \texttt{IGeoSvc} (LHCb, Key4hep) and ALICE
+O\textsuperscript{2}'s \texttt{GeometryManager}:
+
+\begin{cpp}
+namespace ship {
+class IGeometryService {
+ public:
+  virtual ~IGeometryService() = default;
+  virtual const GeoVPhysVol* geoModelWorld() const = 0;           // GeoModel tree
+  virtual G4LogicalVolume* geant4WorldLogical() = 0;              // Geant4 world
+  virtual G4LogicalVolume* getLogicalVolume(const std::string& name) const = 0;
+};
+}
+\end{cpp}
+
+\texttt{SHiPGeometryService} implements it, with two ways to obtain the
+geometry:
+
+\begin{cpp}
+#include <GeometryService/SHiPGeometryService.h>
+
+// from a file written by build_geometry
+auto svc = ship::SHiPGeometryService::fromFile("ship_geometry.db");
+// or straight from the C++ description, without a file
+auto svc2 = ship::SHiPGeometryService::fromSource();
+
+const GeoVPhysVol* world = svc->geoModelWorld();
+\end{cpp}
+
+Two design decisions are worth knowing because they explain error messages
+you may meet:
+
+\begin{description}[style=nextline]
+  \item[The GeoModel tree is built eagerly.] Both factory functions construct
+    the full tree immediately, so a broken geometry fails at start-up, not in
+    the middle of a run.
+  \item[The Geant4 conversion is lazy.] \texttt{geant4WorldLogical()} converts
+    GeoModel to Geant4 volumes on its first call only (guarded by
+    \texttt{std::call\_once}), because the conversion needs a
+    \texttt{G4RunManager} on the calling thread. Call it from
+    \texttt{G4VUserDetectorConstruction::Construct()}.
+    \texttt{getLogicalVolume()} only works after that.
+\end{description}
+
+The library also provides \texttt{G4RayScanner}, which walks a straight line
+through the Geant4 geometry and returns the materials crossed with their
+lengths (useful for material-budget studies), and \texttt{GeometryThread},
+which funnels all Geant4 geometry creation through one thread, as Geant4's
+multi-threading model requires.
+
+\begin{exercise}{How aegir finds the geometry}
+Open \file{aegir/src/geometry\_geomodel\_provider.cpp}. Without running
+anything, answer:
+\begin{enumerate}
+  \item Which two configuration keys does the provider read?
+  \item The workflow gives \texttt{db\_file: 'ship\_geometry.db'}. Where is
+        the file looked for, and in which order?
+  \item At which Phlex layer is the geometry published, and why does that
+        make sense?
+\end{enumerate}
+\end{exercise}
+
+\begin{solution}
+\begin{enumerate}
+  \item \texttt{db\_file} and \texttt{sensitive\_volumes}.
+  \item First the path as given (so relative to the directory \cmd{phlex} runs
+        in); if it does not exist, its bare file name in
+        \file{\$SHIPGEOMETRY\_ROOT/share/geometry/}. Otherwise the provider
+        throws ``Cannot locate geometry DB''.
+  \item At the \texttt{job} layer: the detector does not change from event to
+        event, so it is built once and shared by all events and threads.
+\end{enumerate}
+\end{solution}
+
+\section{The field service}
+\label{sec:fieldservice}
+
+\repo{field\_service} stores magnetic field maps in a versioned file format and
+evaluates them with \href{https://github.com/acts-project/covfie}{covfie}
+(trilinear interpolation on a regular grid). It has four parts, so that each
+consumer pulls in only what it needs:
+
+\begin{center}
+\begin{tabularx}{\linewidth}{l l L}
+\toprule
+Component & Needs & Purpose \\
+\midrule
+core       & --        & build a field evaluator from an in-memory map \\
+MapIO      & ROOT      & read and write map files \\
+G4Adapter  & Geant4    & a \texttt{G4MagneticField} for simulation \\
+ActsAdapter& ACTS      & an \texttt{Acts::MagneticFieldProvider} for reconstruction \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{The field-map format}
+
+A field-map file is a ROOT file holding one RNTuple, \texttt{field\_maps},
+with one entry per map, so a single file can carry several magnets. Each map
+records its regular grid (first and last node and number of nodes per axis,
+in mm), the three field components at every node (in tesla), the node
+ordering, its symmetry, and where the values came from. Reading it needs
+plain ROOT or uproot, not SHiP libraries. The full specification is
+\file{docs/field\_map\_format.md} in the repository.
+
+\paragraph{Symmetry.} A map can be stored for one quadrant only and mirrored
+across the $x=0$ or $y=0$ planes, with a sign (\emph{parity}) per field
+component and plane. FairShip's quadrant-symmetric muon-shield maps are stored
+this way.
+
+\paragraph{Frames.} A map is stored in the magnet's own frame. Whoever uses it
+places it in the global frame with a translation. In \pkg{aegir}, each magnet is
+also attached to the logical volumes whose names contain a given pattern;
+Geant4 evaluates the field only inside those volumes, so field-free drift
+regions cost nothing:
+
+\begin{jsonnetcode}
+field: lib.field_map([
+  { name: 'MuonShield',   volume_pattern: '/SHiP/muon_shield',
+    file: 'muon_shield.root',         map: 'muon_shield',
+    translation: [0, 0, 2040] },       // shield entrance [mm]
+  { name: 'Spectrometer', volume_pattern: '/SHiP/magnet',
+    file: 'spectrometer_dipole.root', map: 'spectrometer_dipole',
+    translation: [0, 0, 89570] },      // magnet centre [mm]
+]),
+\end{jsonnetcode}
+
+\subsection{The command-line tools}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{l L}
+\toprule
+\cmd{fieldmap\_dump f.root}            & print the metadata of every map in the file \\
+\cmd{fieldmap\_dump f.root map}        & read \texttt{x y z} lines (mm) from standard input,
+                                         print \texttt{x y z Bx By Bz} (mm, T) \\
+\cmd{plot\_field\_map f.root map out.root} & plot $B_y$ along the beam axis and in the
+                                         $xz$, $yz$ and central $xy$ planes, as ROOT histograms
+                                         and one PDF per plot \\
+\cmd{generate\_constant\_fieldmap} & write a uniform field over a box, for tests \\
+\cmd{fairship\_to\_fieldmap}       & convert a FairShip map; \cmd{--symmetry quadrant\_dipole}
+                                     for the quadrant-symmetric ones \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The tools are in the \texttt{field-service-tools} conda package; from a
+\repo{field\_service} checkout, \cmd{pixi run install} puts them on the
+environment's \texttt{PATH}. \tbd{confirm the tutorial environment includes
+them}
+
+\begin{exercise}{Inspect the field maps}
+In \file{work/}, where the provided maps are:
+\begin{shell}
+fieldmap_dump spectrometer_dipole.root
+fieldmap_dump muon_shield.root
+\end{shell}
+For each map, note the grid extent and spacing, and whether it is mirrored.
+\end{exercise}
+
+\begin{exercise}{Evaluate and plot the spectrometer field}
+The spectrometer map is stored in the magnet's own frame, so its centre is
+at $(0,0,0)$. Evaluate the field there and one metre either side along the
+beam:
+\begin{shell}
+printf '0 0 0\n0 0 -1000\n0 0 1000\n' | \
+  fieldmap_dump spectrometer_dipole.root spectrometer_dipole
+plot_field_map spectrometer_dipole.root spectrometer_dipole spectro_plots.root
+\end{shell}
+Which component dominates? Open the $B_y$-versus-$z$ PDF and estimate the
+field integral $\int B_y\,\mathrm{d}z$. The transverse momentum kick is
+$\Delta p_T\,[\mathrm{GeV}] \approx 0.3 \int B\,\mathrm{d}z\,[\mathrm{T\,m}]$:
+what does that mean for the bending of a 5\,GeV muon from an HNL decay?
+\end{exercise}
+
+\begin{pitfall}
+Outside its grid the evaluator clamps to the boundary value. A flat plateau
+beyond the edges of a plot is an artefact of the plotting, not a physical
+fringe field. The same clamping applies in the simulation, which evaluates the
+field only inside the volumes matching \texttt{volume\_pattern}: check that the
+map's grid covers those volumes, or Geant4 sees the boundary value continued
+up to the volume edge.
+\end{pitfall}
+
+\begin{note}
+For a demonstration, a uniform spectrometer field can replace the real map. For example, 1\,T vertical over the magnet volume:
+\begin{shell}
+generate_constant_fieldmap spectrometer_dipole.root spectrometer_dipole \
+  0 1 0  -2500 2500  -3500 3500  -2500 2500
+\end{shell}
+(arguments: file, map name, $B_x\,B_y\,B_z$ in T, then
+$x_\mathrm{min}\,x_\mathrm{max}\,y_\mathrm{min}\,y_\mathrm{max}\,z_\mathrm{min}\,z_\mathrm{max}$
+in mm). The workflow still references \file{muon\_shield.root}: either supply
+that map too, or remove its magnet entry for this spectrometer-only demonstration.
+The uniform-field sample is not suitable for an absolute performance prediction.
+\end{note}
+
+\begin{organisernote}
+Decide which maps participants use and put them where \cref{ch:setup} says.
+FairShip's maps converted with \cmd{fairship\_to\_fieldmap}
+(\cmd{--symmetry quadrant\_dipole} for the muon shield) work with the
+translations in \file{aegir/workflows/gun\_st\_field.jsonnet}, which this
+booklet reuses. Fill in the expected numbers for the exercise once the maps
+are fixed: $B_y$ at the centre and the field integral.
+\end{organisernote}

@@ -1,0 +1,231 @@
+\chapter{Analysis from the files}
+\label{ch:analysis}
+
+\chaptergoals{10 of 11 in Part~II.}
+{\cref{ch:aegir,ch:digitisation}: the simulated and digitised files; the Python of \cref{ch:team}.}
+{select HNL decays from the files, weight them correctly, turn efficiencies into yields, and measure momentum from the bending.}
+
+There is no analysis framework to learn in this chapter. The files are
+RNTuples of plain structs, so a Python script with PyROOT can read them
+directly, and that is what we do.
+
+\section{Reading the files}
+
+The pattern from \cref{ch:generator} is all you need: open a reader on the
+RNTuple, create a typed \emph{view} per field, and call the view with an entry
+number to get that entry's value as a C++ object. The scripts in
+\file{code/analysis/} share three small helpers in \file{shipfiles.py}: a
+class that keeps readers and views together, the detector numbering, and the
+positions of the decay volume and the straw stations.
+
+\codefile[linerange={36-63}]{Python}{code/analysis/shipfiles.py}
+
+\begin{pitfall}
+Two habits of PyROOT with RNTuples are built into these helpers. A view
+returns a reference into its own buffer, which the next call overwrites: copy
+out what you need before reading the next entry. And tearing down readers
+when Python exits can crash; the scripts therefore keep every reader alive and
+leave through \texttt{os.\_exit} after flushing their output
+(\texttt{sf.finish()}).
+\end{pitfall}
+
+\section{Which file for which question}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{X l}
+\toprule
+Question & File \\
+\midrule
+generator truth: HNL mass, decay position, daughter momenta & input or simulation \\
+per event: which detectors did the daughters reach, was the veto silent & simulation \\
+weighted efficiencies and yields & simulation (carries the weights) \\
+detector response over all hits: resolutions, time distributions & digitisation \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The reason for the split is the shape of \pkg{Shannon}'s output
+(\cref{sec:digilayout}): a stream of time-stamped hits, as the detector will
+deliver, with no simulated-event number and no weights. Questions about one
+simulated event are therefore answered from the simulation file, using
+simulated hits as a stand-in for digitised ones. For the coarse station-count exercise, the position smearing is small.
+This does not establish equivalence for reconstructed tracks, vertex cuts,
+timing or a realistic detector response.
+
+\section{The HNL analysis}
+
+\file{code/analysis/hnl\_analysis.py} answers, event by event:
+
+\begin{enumerate}
+  \item What does the generator record say? It requires a pion and a muon of opposite electric charge
+        with status~1, a shared status-2 mother and a common vertex, and fills the $\pi\mu$ invariant mass, the
+        decay position and the opening angle.
+  \item Where did the daughters go? It finds them among the Geant4 particles
+        (\field{parentId}~$=0$), and for each counts the straw stations in which
+        it left hits.
+  \item Was the veto silent? It counts UBT hits and sums the SBT energy
+        deposit.
+  \item How much did the magnet bend each daughter? From the mean $x$ of its
+        hits in stations 1--2 and 3--4 it computes the change of slope
+        $\Delta\theta_x$ across the magnet.
+\end{enumerate}
+
+It then applies these as a sequence of cuts, weighting every event with the
+EventCalc weight from \texttt{event\_header}, and prints the cut flow.
+
+\begin{exercise}{Run the analysis}
+From your working directory:
+\begin{shell}
+python $CODE/analysis/hnl_analysis.py hnl_sim.root
+\end{shell}
+Look at the printed cut flow and at the PDFs it writes
+(\file{hnl\_analysis\_*.pdf}).
+\begin{enumerate}
+  \item \file{\_mass.pdf}: why is the peak so narrow, and where is it?
+  \item \file{\_decay\_z.pdf}: describe the shape. How would it change for a
+        much shorter $c\tau$?
+  \item Which cut removes most of the weighted events? Look at
+        \file{\_n\_stations.pdf} and \file{\_opening.pdf} to find out why.
+\end{enumerate}
+\end{exercise}
+
+\begin{checkpoint}
+A cut flow of seven lines whose first line counts all your simulated events,
+and eight PDFs.
+\end{checkpoint}
+
+\begin{solution}
+\begin{enumerate}
+  \item The mass is computed from the generator four-vectors, which conserve
+        energy and momentum exactly: the peak is a spike at the HNL mass of
+        the sample. The width a real analysis sees comes from the momentum
+        resolution of reconstruction.
+  \item For laboratory decay length $\beta\gamma c\tau$ large compared with the volume length, the
+        decay density is approximately uniform along it; the slope is the
+        exponential decay law, steeper for shorter $c\tau$, which piles decays
+        up at the upstream end. The EventCalc weights carry the
+        normalisation, which is why the histogram is filled with them.
+  \item Usually the station requirement: daughters at large angle leave the
+        spectrometer acceptance, and soft ones are swept out by the magnet
+        before stations 3 and 4.
+\end{enumerate}
+\end{solution}
+
+\begin{pitfall}
+The cut labelled ``decay in nominal z range'' checks only the longitudinal
+coordinate, not the helium volume or a fiducial margin. The UBT and SBT
+criteria also inherit the broad sensitive-volume selection. A full analysis
+needs a three-dimensional geometry check, active-material hit selection,
+reconstruction and background samples before quoting a sensitivity.
+\end{pitfall}
+
+\section{The veto}
+
+The SBT surrounds the decay volume to reject background from particles
+entering it from outside. Signal daughters should not touch it, but they can:
+a daughter emitted at a large angle, or a secondary from an interaction in the
+vessel or the first station, deposits energy in the LAB cells.
+
+\begin{exercise}{What does a tight veto cost?}
+\file{\_sbt\_edep.pdf} shows the SBT energy deposit per event. Rerun with
+different thresholds and record the signal efficiency of the
+``SBT below threshold'' line:
+\begin{shell}
+for t in 0 0.010 0.045 0.100; do
+  python $CODE/analysis/hnl_analysis.py hnl_sim.root --sbt-threshold $t | grep SBT
+done
+\end{shell}
+A threshold costs signal efficiency here, and buys background rejection in a
+background sample. Why is the background side of this trade-off not
+something you can study with this sample?
+\end{exercise}
+
+\begin{solution}
+The sample contains only signal. The rejection of a given threshold has to be
+measured on muon-induced and neutrino-induced background samples, simulated
+with the \texttt{fixed\_target\_source} or \texttt{genie\_reader\_source}
+plugins of \pkg{aegir}, which is a natural follow-up project.
+\end{solution}
+
+\section{Measuring momentum with the magnet}
+
+A charged particle crossing a dipole field changes direction by
+\[
+  \Delta\theta \approx \frac{0.3\,\int B\,\mathrm{d}l\;[\mathrm{T\,m}]}{p\;[\mathrm{GeV}]},
+\]
+for a singly charged, forward track in the small-angle limit. Thus
+$p\,|\Delta\theta_x|$ is approximately constant only for similar sampled
+field integrals and negligible energy loss and scattering.
+\file{\_p\_kick.pdf} plots it with the true momentum $p$ and the
+$\Delta\theta_x$ measured from the simulated straw hits.
+
+\begin{exercise}{The field integral from the hits}
+Read the position of the peak in \file{\_p\_kick.pdf} and convert it to
+$\int B\,\mathrm{d}l$. Compare with your estimate from the field map in
+\cref{sec:fieldservice}. If you simulated without field in \cref{ch:aegir},
+run the analysis on that file too: where is the peak now?
+\end{exercise}
+
+\begin{solution}
+The peak is at $0.3\int B_y\,\mathrm{d}z$ in GeV\,rad, e.g.\ \tbd{value for
+the tutorial map}; the distribution is broadened by varying paths, scattering and energy
+loss; primary-track matching excludes secondary hits from this estimator. Without field
+the peak sits at zero, broadened by scattering and the finite sampling of the trajectory. Turning this
+around, $p = 0.3\int B\,\mathrm{d}l / |\Delta\theta|$ is the momentum
+measurement reconstruction makes, with a fitted track instead of mean hit
+positions.
+\end{solution}
+
+\section{Yields}
+
+The weights carry the probability of each decay; the absolute normalisation is
+EventCalc's expected number of decays $N_\mathrm{exp}$
+(\cref{ch:generator}). Provided its exposure, channel selection and sampled phase space match
+the input (with no omitted acceptance), it converts each weighted cut-flow
+fraction into a teaching yield estimate:
+\begin{shell}
+python $CODE/analysis/hnl_analysis.py hnl_sim.root --n-expected <N_exp>
+\end{shell}
+
+\begin{exercise}{How many would SHiP see?}
+Take $N_\mathrm{exp}$ for the sample from \tbd{where the converter or the
+organisers provide it} and compute the expected number of selected
+$\HNL\to\pi\mu$ decays. Which of the selection steps here would a real analysis
+replace, and with what?
+\end{exercise}
+
+\begin{solution}
+Truth-level and simulated-hit requirements stand in for reconstruction: the
+station requirement becomes ``two reconstructed tracks with a good fit'', the
+decay-volume cut a fiducial cut on the \emph{reconstructed} vertex, and the
+analysis adds a cut on the impact parameter of the HNL candidate with respect
+to the target, the invariant mass, muon identification and timing coincidence.
+All of these need \pkg{Trout}.
+\end{solution}
+
+\section{Going further}
+
+\begin{exercise}[colback=white]{Optional: a vertex without reconstruction}
+Upstream of the magnet, straight lines approximate the daughter trajectories;
+material scattering and energy loss still matter. For each daughter,
+take the mean position of its simulated straw hits in stations 1 and 2,
+extrapolate the line back into the decay volume, and find the point of
+closest approach of the two lines. Histogram its distance from the true decay
+vertex in $x$ and $z$. Why is the resolution so much worse in $z$ than in
+$x$, and how does it depend on the opening angle?
+\end{exercise}
+
+\begin{solution}
+A solution is in \file{code/analysis/solutions/vertex\_from\_hits.py}. The
+lines meet at a small angle, so an error in their transverse position becomes
+an error in $z$ larger by roughly the inverse opening angle; small-angle
+decays (light, fast HNLs) have the worst $z$ resolution.
+\end{solution}
+
+\begin{exercise}[colback=white]{Optional: from a hit stream back to events}
+Using the digitised file, histogram the times of all straw hits. Could you
+separate the simulated events by time? What would the digitisation have to
+record so that a Monte Carlo study can connect digitised hits to the
+simulated event they came from? Bring your answer to the closing discussion.
+\end{exercise}

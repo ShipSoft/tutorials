@@ -1,0 +1,205 @@
+\chapter{Branches: merging and rebasing}
+\label{ch:branches}
+
+\chaptergoals{2 of 6 in Part~I.}
+{\cref{ch:git}: your \file{git-playground} repository with a few commits.}
+{develop on a branch, bring two lines of work together by merging or by
+rebasing, know which of the two SHiP uses and why, and resolve a conflict.}
+
+\section{Branches}
+
+A \emph{branch} is just a movable name for a commit. When you commit on a
+branch, the name moves forward to the new commit. \texttt{HEAD} is the branch
+you are on. Work on anything that is not finished happens on a branch of its
+own, so that \texttt{main} always works:
+
+\begin{shell}
+git switch -c feature          # create the branch "feature" and switch to it
+# ... edit, add, commit ...
+git switch main                # back to main; your files change accordingly
+git branch                     # list branches; * marks the current one
+\end{shell}
+
+\begin{exercise}{A branch of your own}
+In \file{git-playground}, create a branch \texttt{feature}, add a file
+\file{feature.py} and commit it. Switch back to \texttt{main}: where did
+\file{feature.py} go? Switch to \texttt{feature} again. Then look at both
+branches at once with \cmd{git log -{}-oneline -{}-graph -{}-all}.
+\end{exercise}
+
+Meanwhile other work lands on \texttt{main}, and the two branches
+\emph{diverge}. Sooner or later your branch has to be combined with
+\texttt{main}. There are two ways to do that.
+
+\section{Merging and rebasing}
+\label{sec:mergerebase}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[node distance=3.5mm]
+  \newcommand{\panel}[1]{\node[font=\sffamily\small\bfseries, anchor=west] at (-0.35,1.25) {#1};}
+  % ---- before ----
+  \begin{scope}
+    \panel{Before}
+    \node[commit] (a) at (0,0) {A};
+    \node[commit, right=of a] (b) {B};
+    \node[commit, right=of b] (e) {E};
+    \node[commit] (c) at ($(b)+(0.5,-1)$) {C};
+    \node[commit, right=of c] (d) {D};
+    \draw[parent] (b) -- (a); \draw[parent] (e) -- (b);
+    \draw[parent] (c) -- (b); \draw[parent] (d) -- (c);
+    \node[ref, above=1.2mm of e] {main};
+    \node[ref, below=1.2mm of d] {feature};
+  \end{scope}
+  % ---- merge ----
+  \begin{scope}[xshift=46mm]
+    \panel{git merge feature}
+    \node[commit] (a) at (0,0) {A};
+    \node[commit, right=of a] (b) {B};
+    \node[commit, right=of b] (e) {E};
+    \node[commit] (c) at ($(b)+(0.5,-1)$) {C};
+    \node[commit, right=of c] (d) {D};
+    \node[mergecommit, right=of e] (mm) {M};
+    \draw[parent] (b) -- (a); \draw[parent] (e) -- (b);
+    \draw[parent] (c) -- (b); \draw[parent] (d) -- (c);
+    \draw[parent] (mm) -- (e); \draw[parent] (mm) -- (d);
+    \node[ref, above=1.2mm of mm] {main};
+    \node[ref, below=1.2mm of d] {feature};
+  \end{scope}
+  % ---- rebase ----
+  \begin{scope}[xshift=100mm]
+    \panel{git rebase main}
+    \node[commit] (a) at (0,0) {A};
+    \node[commit, right=of a] (b) {B};
+    \node[commit, right=of b] (e) {E};
+    \node[rewritten, right=of e] (c2) {C$'$};
+    \node[rewritten, right=of c2] (d2) {D$'$};
+    \draw[parent] (b) -- (a); \draw[parent] (e) -- (b);
+    \draw[parent] (c2) -- (e); \draw[parent] (d2) -- (c2);
+    \node[ref, above=1.2mm of e] {main};
+    \node[ref, above=1.2mm of d2] {feature};
+  \end{scope}
+\end{tikzpicture}
+\caption{Combining a branch with \texttt{main}. Arrows point from each commit
+to its parent. A merge adds a commit M with two parents. A rebase replays C and
+D on top of E as new commits C$'$ and D$'$ (dashed): same changes, new hashes,
+and a straight history; \texttt{main} can then simply move forward to D$'$
+(a \emph{fast-forward}).}
+\label{fig:mergerebase}
+\end{figure}
+
+\paragraph{Merging} (\cmd{git merge feature}, run on \texttt{main}) keeps
+both lines of history exactly as they happened and joins them with a new
+\emph{merge commit} that has two parents. Nothing is rewritten. The price is a
+history that branches and rejoins everywhere, which is hard to read and to
+bisect.
+
+\paragraph{Rebasing} (\cmd{git rebase main}, run on \texttt{feature}) takes
+the commits that are on \texttt{feature} but not on \texttt{main}, and
+re-applies them one by one on top of the current \texttt{main}. The result
+looks as if you had started your work from today's \texttt{main}: a straight
+line, with no merge commits. The price is that your commits are
+\emph{replaced} by new ones with new hashes.
+
+\begin{center}\small
+\begin{tabularx}{\linewidth}{l L L}
+\toprule
+ & merge & rebase \\
+\midrule
+history     & as it happened, with merge commits & straight line \\
+your commits& kept, same hashes & rewritten, new hashes \\
+conflicts   & resolved once, in the merge commit & resolved per commit, as each is replayed \\
+safe on shared branches & yes & \textbf{no}: others still have the old commits \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\paragraph{What SHiP uses.} The \texttt{main} branch of the ShipSoft
+repositories requires a \emph{linear history}: merge commits are not
+accepted. Pull requests land by rebasing (or by squashing all their commits
+into one), through a merge queue (\cref{sec:pullrequests}). So when your
+branch falls behind \texttt{main}, you bring it up to date by \emph{rebasing
+it}, not by merging \texttt{main} into it.
+
+\begin{pitfall}
+The golden rule: only rebase commits that nobody else has built on. Your own
+pull-request branch is fine; \texttt{main}, or a branch a colleague is also
+working on, is not. After rebasing a branch you had already pushed, push with
+\cmd{git push -{}-force-with-lease} (\cref{ch:remotes}).
+\end{pitfall}
+
+\begin{exercise}{Merge, then rebase}
+Continue from the previous exercise: switch to \texttt{main} and make one
+commit there, so the branches diverge. Copy the branch
+(\cmd{git branch feature-copy feature}). Merge \texttt{feature} into
+\texttt{main} and look at \cmd{git log -{}-oneline -{}-graph -{}-all}. Undo the
+merge with \cmd{git reset -{}-hard HEAD\textasciitilde1} (only ever on a
+playground), switch to \texttt{feature-copy}, run \cmd{git rebase main}, and
+look at the graph again. Compare the hashes of the rebased commits with the
+originals. Finally, \cmd{git switch main} and
+\cmd{git merge -{}-ff-only feature-copy}: why does this one not create a merge
+commit?
+\end{exercise}
+
+\section{Conflicts}
+
+When both sides changed the same lines, git cannot decide and stops. During a
+rebase it looks like this:
+
+\begin{outputlisting}
+CONFLICT (content): Merge conflict in mystery_analysis.py
+error: could not apply c8dfe70... feat(task-10): log-scale plot
+hint: Resolve all conflicts manually, mark them as resolved with
+hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+\end{outputlisting}
+
+and the file contains both versions between markers:
+
+\begin{outputlisting}
+<<<<<<< HEAD
+OUTPUT_PDF = "results/mystery_fit.pdf"
+=======
+OUTPUT_PDF = "mystery_fit_log.pdf"
+>>>>>>> c8dfe70 (feat(task-10): log-scale plot)
+\end{outputlisting}
+
+Edit the file into what it should be, delete the three marker lines, then
+\begin{shell}
+git add mystery_analysis.py
+git rebase --continue          # or: git rebase --abort, to go back to before
+\end{shell}
+
+\begin{pitfall}
+During a rebase the sides are the other way round from what you might expect:
+\texttt{HEAD} (the upper half) is the branch you are rebasing \emph{onto},
+i.e.\ the current \texttt{main}; the lower half is your own commit being
+replayed. Always run the tests again after resolving a conflict: a resolution
+that git accepts is not necessarily one that works.
+\end{pitfall}
+
+\begin{exercise}{A conflict on purpose}
+\begin{shell}
+printf 'OUTPUT = "plot.pdf"\n' > settings.py
+git add settings.py && git commit -m "feat: settings"
+git switch -c mine
+printf 'OUTPUT = "mine.pdf"\n' > settings.py && git commit -am "feat: my name"
+git switch main
+printf 'OUTPUT = "theirs.pdf"\n' > settings.py && git commit -am "feat: their name"
+git switch mine
+git rebase main                # stops: CONFLICT
+\end{shell}
+Open \file{settings.py}, decide what the line should be, remove the markers,
+\cmd{git add settings.py} and \cmd{git rebase -{}-continue} (git opens an
+editor for the message: save and close it). Look at the graph. Then make the
+same conflict again and leave it with \cmd{git rebase -{}-abort} instead.
+\end{exercise}
+
+\begin{levelcheck}
+\begin{itemize}
+  \can create, switch between and list branches;
+  \can explain, with a drawing, what a merge and a rebase do to the history;
+  \can say why ShipSoft wants rebased, linear history, and which branches you
+       may and may not rebase;
+  \can resolve a conflict during a rebase, or abort it.
+\end{itemize}
+\end{levelcheck}

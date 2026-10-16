@@ -1,0 +1,197 @@
+\chapter{Automatic checks: continuous integration}
+\label{ch:ci}
+
+\chaptergoals{5 of 6 in Part~I.}
+{\cref{ch:remotes} (pushing to GitHub) and \cref{ch:pixi} (tasks and
+\cmd{-{}-locked}); your \file{pixi-playground}; a GitHub account.}
+{read a GitHub Actions workflow, set one up, find out why a check failed and
+reproduce it locally, and recognise the checks every ShipSoft pull request
+must pass.}
+
+\section{What CI does}
+
+\emph{Continuous integration} (CI) means: every time somebody pushes, a fresh
+machine checks out the commit, builds it, and runs the tests and the
+linters. The result appears on the pull request as a \emph{check}, green or
+red. Nobody has to remember to run the tests, the reviewer does not have to
+run them either, and they run in a clean environment rather than on somebody's
+carefully configured laptop. A repository can make checks \emph{required}: a
+pull request with a red required check cannot be merged.
+
+CI only works if it runs exactly what you run. That is what the pixi tasks and
+the lock file of \cref{ch:pixi} are for: CI runs
+\cmd{pixi run -{}-locked <task>}, the same command, in the same environment,
+that you run at home.
+
+\section{GitHub Actions in five words}
+
+GitHub's CI is called GitHub Actions. Its vocabulary:
+
+\begin{description}[style=nextline]
+  \item[workflow] a YAML file in \file{.github/workflows/} in the repository.
+  \item[events] what starts it, under \texttt{on:}: a push, a pull request,
+    the merge queue, a schedule, a button.
+  \item[jobs] what it does. Each job runs on a fresh virtual machine
+    (\texttt{runs-on: ubuntu-latest}); jobs run in parallel unless one
+    \texttt{needs} another.
+  \item[steps] the commands of a job, in order. A step either \texttt{uses}
+    a ready-made \emph{action} (check out the code, install pixi) or
+    \texttt{run}s shell commands.
+  \item[logs] everything a step prints, kept on GitHub, one click away from
+    the pull request.
+\end{description}
+
+\section{Your first workflow}
+
+\codefile[basicstyle=\ttfamily\footnotesize]{yaml}{code/ci/playground-ci.yml}
+
+Three steps: \texttt{actions/checkout} fetches the commit being tested;
+\texttt{prefix-dev/setup-pixi} installs pixi and the environment, from
+\file{pixi.lock} (\texttt{locked: true}); and the last step runs your task.
+
+\begin{exercise}{CI for your playground}
+\label{ex:firstci}
+On GitHub, create a new, empty repository \texttt{pixi-playground} (no
+README, no licence). Then, in your \file{pixi-playground}:
+\begin{shell}
+mkdir -p .github/workflows
+cp $CODE/ci/playground-ci.yml .github/workflows/ci.yml
+git add .github && git commit -m "ci: run hello on every push"
+git remote add origin git@github.com:<you>/pixi-playground.git
+git push -u origin main
+\end{shell}
+Open the repository's \emph{Actions} tab and follow the run. Click on the job
+and open each step: where does it print the ROOT version?
+\end{exercise}
+
+\begin{pitfall}
+CI runs on Linux. \cmd{pixi init} on a Mac writes only your Mac's platform
+into \file{pixi.toml}, and \cmd{pixi run -{}-locked} then fails in CI because
+the lock file has nothing for \texttt{linux-64}. Add it with
+\cmd{pixi workspace platform add linux-64} and commit the new lock file.
+\end{pitfall}
+
+\begin{exercise}{Red, then green}
+\label{ex:redgreen}
+Break the task on a branch and propose the breakage to yourself:
+\begin{shell}
+git switch -c broken
+echo 'raise SystemExit("deliberately broken")' >> hello.py
+git commit -am "test: break hello on purpose"
+git push -u origin broken
+\end{shell}
+Open a pull request from \texttt{broken} into \texttt{main} of your own
+repository. Watch the check turn red, open its log, and find the error.
+Reproduce it locally with the very same command, \cmd{pixi run -{}-locked
+hello}. Then repair \file{hello.py}, commit, \cmd{git push}, and watch the
+same pull request turn green. Close it without merging.
+\end{exercise}
+
+\section{The workflow of the team repository}
+\label{sec:teamci}
+
+The team repository of \cref{ch:team} has a workflow laid out like the
+ShipSoft ones. Read it once now; you will see it run on your pull request.
+
+\codefile[basicstyle=\ttfamily\footnotesize]{yaml}{code/teamwork/template/.github/workflows/ci.yml}
+
+\begin{description}[style=nextline]
+  \item[Events.] Pull requests and pushes to \texttt{main}, as before, plus
+    \texttt{merge\_group}: the merge queue runs the checks once more on the
+    rebased commit before it lands (\cref{sec:pullrequests}).
+  \item[Concurrency.] A new push to a pull request cancels the run for the
+    previous push, which nobody needs any more.
+  \item[Two jobs] run in parallel: \texttt{tasks} runs
+    \cmd{pixi run -{}-locked check} (all ten task checks of \cref{ch:team}), and
+    \texttt{lint} runs \texttt{ruff} in its own pixi environment.
+  \item[One summary job,] ``All checks passed'', needs both and fails if
+    either failed or was cancelled. Its name is the one required check of the
+    repository. Jobs can be added or renamed later without touching the
+    repository settings; \texttt{if: always()} makes it report a failure
+    instead of being silently skipped.
+\end{description}
+
+\begin{exercise}{Predict the checks}
+Without running anything, answer from the workflow above:
+\begin{enumerate}
+  \item A pull request adds a correct task~4 but also an unused
+        \texttt{import}. Which jobs are green, which red, and can the pull
+        request be merged?
+  \item You push twice within a minute. How many runs complete?
+  \item Which single command reproduces the \texttt{tasks} job on your
+        machine, and which the \texttt{lint} job?
+\end{enumerate}
+\end{exercise}
+
+\begin{solution}
+(1) \texttt{tasks} green, \texttt{lint} red (ruff rule F401), so ``All checks
+passed'' is red and the pull request cannot be merged until the import is
+removed. (2) One: the second push cancels the first run
+(\texttt{concurrency}). (3) \cmd{pixi run -{}-locked check} and
+\cmd{pixi run -{}-locked lint}.
+\end{solution}
+
+\section{CI in the ShipSoft repositories}
+
+The ShipSoft repositories share their CI through \emph{reusable workflows} in
+\repo{.github}: each repository's workflow is a few lines that call a common
+one. From \repo{Shannon}'s \file{.github/workflows/pixi-build.yml}:
+\begin{lstlisting}[language=yaml]
+jobs:
+  build:
+    uses: ShipSoft/.github/.github/workflows/pixi-cmake-build.yml@main
+    with:
+      tasks: '["configure", "build", "install", "test", "smoke"]'
+\end{lstlisting}
+followed by the same ``All checks passed'' summary job as in the team
+repository. What runs, and what it means for you:
+
+\begin{center}\small
+\begin{tabularx}{\linewidth}{l L}
+\toprule
+Workflow & What it checks \\
+\midrule
+\texttt{pixi-cmake-build} & runs the listed pixi tasks with \cmd{-{}-locked}, compiling through
+                            a cache (``All checks passed'') \\
+\texttt{prek}             & the lint hooks of the \texttt{lint} environment on all files, and posts
+                            their output on the pull request (``Lint passed'') \\
+\texttt{commit-check}     & every commit message of the pull request against Conventional Commits
+                            (part of ``Lint passed'') \\
+\texttt{clang-tidy}       & C++ guidelines, reported only on the lines your pull request changes \\
+\texttt{pixi-lock-update} & once a month, opens a pull request with an updated \file{pixi.lock} \\
+\texttt{physics-metrics}  & physics distributions compared with a reference (\repo{ship-ci-metrics}) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{note}
+Run the lint checks before you push and the ``Lint passed'' check is a
+formality: \cmd{pixi run lint} checks everything, and \cmd{pixi run
+install-hooks} makes the same checks run at every \cmd{git commit}. When a
+check is red anyway, the log of the failed step names the pixi task; rerun
+exactly that task locally.
+\end{note}
+
+\begin{exercise}[colback=white]{Optional: read a real run}
+Open \url{https://github.com/ShipSoft/aegir/actions}, choose a recent run of
+``Pixi Build'', and find the log group of \cmd{pixi run -{}-locked test}. How
+long did the build take, and how many tests ran?
+\end{exercise}
+
+\begin{levelcheck}
+\begin{itemize}
+  \can name the parts of a workflow: events, jobs, steps;
+  \can set up CI for a pixi project and watch it run;
+  \can go from a red check to its log, and reproduce the failure with the
+       same pixi task locally;
+  \can explain why a summary job, rather than every job, is the required
+       check, and what \texttt{merge\_group} is for.
+\end{itemize}
+\end{levelcheck}
+
+\begin{solution}
+Both workflows in this chapter pass \texttt{actionlint}~1.7.12, and use the
+action versions of the ShipSoft reusable workflows on 15 October 2026
+(\texttt{actions/checkout@v7}, \texttt{prefix-dev/setup-pixi@v0.11.0}). They
+have not been run on GitHub: do \cref{ex:firstci} once before the session.
+\end{solution}

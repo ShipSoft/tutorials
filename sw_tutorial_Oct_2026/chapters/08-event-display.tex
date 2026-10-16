@@ -1,0 +1,169 @@
+\chapter{Looking at events with sea-cucumber}
+\label{ch:display}
+
+\chaptergoals{8 of 11 in Part~II.}
+{\cref{ch:aegir}: \file{hnl\_sim.root}; \file{ship\_geometry.db}.}
+{look at simulated events in the REve and web displays, and write a view configuration of your own.}
+
+\section{Three inputs and nothing else}
+
+\repo{sea-cucumber} takes a GeoModel \file{.db}, a data file in the SHiP data
+model, and optionally a view configuration in TOML. It links no simulation or
+analysis code, so it can inspect supported event-oriented files regardless of their producer;
+it does not support every on-disk layout. From the \texttt{events} RNTuple it reads the fields
+\texttt{mc\_particles}, \texttt{sim\_hits}, \texttt{sim\_particles} and
+\texttt{rec\_particles}, and tolerates any of them being absent.
+
+It has two front ends sharing one core:
+
+\begin{description}[style=nextline]
+  \item[the REve display] ROOT's web-based event display, one event at a
+    time, started with \cmd{pixi run sc};
+  \item[the web display] a three.js page in your browser: the C++ side
+    first writes the geometry and events to JSON files, which the page then
+    renders. You can arrange any number of zoomed views and save the layout.
+\end{description}
+
+Following the ALICE O\textsuperscript{2} event-display design, the C++ side
+does all the interpretation (reading the geometry, choosing colours,
+tessellating shapes), and the viewers only draw.
+
+\begin{note}
+\pkg{sea-cucumber} reads simulation output. It does not read the per-detector
+collections written by \pkg{Shannon}, so digitised hits cannot be displayed
+yet.
+\end{note}
+
+\section{The REve display}
+
+\begin{exercise}{Your first HNL event}
+From the \file{sea-cucumber} directory:
+\begin{shell}
+pixi run sc --geometry ../work/ship_geometry.db \
+            --data ../work/hnl_sim.root \
+            --view views/default.toml --event 0
+\end{shell}
+REve opens in a browser window. Rotate and zoom the main view. Find the decay
+vertex (a star marker), the two daughter tracks' hits in the straw stations,
+and their energy deposits in the calorimeter. Which daughter is the muon?
+\end{exercise}
+
+\begin{checkpoint}
+A star marker somewhere in the decay volume and two trails of hits downstream
+of it: four straw stations, the timing detector, and a cluster in the
+calorimeter.
+\end{checkpoint}
+
+\begin{solution}
+A muon typically deposits relatively little energy in
+the calorimeter (a minimum-ionising trail through ECAL and HCAL), while a
+pion may start a hadronic shower. A non-interacting pion can also look
+minimum-ionising, so this is only a visual hint;
+the analysis in \cref{ch:analysis} identifies them from the truth record.
+\end{solution}
+
+\begin{pitfall}
+The geometry has about a million volumes. Reading it takes several seconds
+at every start, and drawing all of it would make the display unusable, which
+is why \file{views/default.toml} excludes the straws, tiles and SBT cells.
+For repeated use, convert the geometry once into a cache:
+\begin{shell}
+pixi run geo-cache --geometry ../work/ship_geometry.db --view views/default.toml
+pixi run sc --geo-cache geocache --geometry ../work/ship_geometry.db \
+            --data ../work/hnl_sim.root --event 0
+\end{shell}
+\end{pitfall}
+
+\section{The web display}
+
+\begin{exercise}{All events in the browser}
+Produce the display files for all events, then serve them:
+\begin{shell}
+pixi run web-data --geometry ../work/ship_geometry.db \
+                  --data ../work/hnl_sim.root \
+                  --view views/default.toml --events all
+pixi run web
+\end{shell}
+Open \url{http://localhost:8080}. Step through the events from the sidebar.
+Draw a rectangle on the main view to open a zoomed view of the spectrometer;
+save the layout.
+\end{exercise}
+
+\begin{note}
+The web page loads three.js from a public CDN. On a machine without internet
+access, see the \pkg{sea-cucumber} manual for serving it locally. If you work
+on a remote machine, forward the port: \cmd{ssh -L 8080:localhost:8080
+<host>}.
+\end{note}
+
+\section{View configuration}
+
+A view file has global settings, a \texttt{[geometry]} table (which volumes to
+draw and how), \texttt{[hits]} and \texttt{[decay]} tables (event styling),
+and any number of \texttt{[[region]]} tables, each a zoomed view with its own
+window and camera. For example, a side view of the spectrometer:
+
+\begin{tomlcode}
+[[region]]
+name   = "Spectrometer"
+title  = "Spectrometer (side view)"
+zmin   = 82000.0          # mm
+zmax   = 96000.0
+camera = "xz"             # side view, looking along y
+max_shapes = 6000
+\end{tomlcode}
+
+Geometry colours are assigned by \texttt{[[geometry.style]]} rules, matched
+as substrings of volume names; the first matching rule wins. The full list of
+keys is in \file{docs/MANUAL.md} in the repository.
+
+\begin{exercise}{A view for the HNL}
+Copy \file{views/default.toml} to \file{views/hnl.toml} and edit the copy:
+\begin{enumerate}
+  \item The style rules match names like \texttt{DecayVolume} or
+        \texttt{Tracker}. Compare them with the volume names you found in
+        \cref{ch:geometry}: which rules still apply? Change them to match the
+        \texttt{/SHiP/\ldots} names.
+  \item Add a region showing the decay volume in the horizontal $xz$ projection (viewed along $y$)
+        (\texttt{camera = "xz"}, $z$ from 32\,000 to 84\,000\,mm) with the
+        decay vertex drawn (\texttt{draw\_decay = true}).
+\end{enumerate}
+Display a few events with \cmd{--view views/hnl.toml}.
+\end{exercise}
+
+\begin{solution}
+Style matching is a case-sensitive substring test, so
+\texttt{DecayVolume}, \texttt{Tracker}, \texttt{Timing}, \texttt{ECAL},
+\texttt{HCAL}, \texttt{MuonShield} and \texttt{Target} match none of the
+current names. Replacements: \texttt{decay\_volume}, \texttt{trackers},
+\texttt{timing\_detector}, \texttt{calorimeter}, \texttt{muon\_shield},
+\texttt{target}, \texttt{magnet}, \texttt{sbt}. The region:
+\begin{tomlcode}
+[[region]]
+name = "DecayVolume"
+title = "Decay volume (side view)"
+zmin = 32000.0
+zmax = 84000.0
+camera = "xz"
+draw_decay = true
+decay_clip = true
+max_shapes = 3000
+\end{tomlcode}
+\end{solution}
+
+\begin{organisernote}
+Style rules are matched with \texttt{std::string::find} in
+\file{src/ViewConfig.cxx}, i.e.\ case-sensitively, so none of the default
+styles matches the current \texttt{/SHiP/\ldots} names and every volume gets
+the default colour or the hashed blue/cream fallback. Worth an issue (or a
+pull request updating \file{views/default.toml}) on \repo{sea-cucumber}
+before the tutorial; if it is fixed, drop part~1 of the exercise.
+\end{organisernote}
+
+\begin{exercise}[colback=white]{Optional: with and without field}
+If you simulated \file{hnl\_sim\_nofield.root} in \cref{ch:aegir}, match the physical event using \field{event\_number}, then display its
+entry from each file side by side in two browser tabs. Where do
+the tracks start to differ, and in which direction are they bent?
+The \cmd{--event} option selects an RNTuple entry index, not necessarily the
+stored \field{event\_number}; multithreaded outputs can have different order.
+\end{exercise}

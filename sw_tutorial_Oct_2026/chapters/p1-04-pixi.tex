@@ -1,0 +1,215 @@
+\chapter{Reproducible environments with pixi}
+\label{ch:pixi}
+
+\chaptergoals{4 of 6 in Part~I.}
+{\cref{ch:git}: you can commit. A network connection to download packages.}
+{create a project environment from a manifest and a lock file, run commands
+and tasks in it, add packages and a second environment, and recognise how the
+ShipSoft repositories use all of this.}
+
+\section{Why an environment, and why pixi}
+
+``It works on my machine'' is the oldest problem in shared software. An
+analysis depends on Python, ROOT, and everything ROOT depends on; the SHiP
+packages add Geant4, GeoModel, Phlex and compilers. Two people with different
+versions of any of these can get different results, or none.
+
+\href{https://pixi.sh}{pixi} solves this per project. It installs packages
+from conda channels (\texttt{conda-forge} for the general HEP stack,
+\href{https://prefix.dev/channels/ship}{\texttt{prefix.dev/ship}} for the SHiP
+packages) into a directory inside the project, \file{.pixi/}. Nothing is
+installed system-wide, nothing needs administrator rights, and every project
+has exactly the versions it asks for. Every ShipSoft repository is a pixi
+project, and so is the team repository of \cref{ch:team}.
+
+A pixi project is described by two files, and both are committed to git:
+
+\begin{center}\small
+\begin{tabularx}{\linewidth}{l L L}
+\toprule
+ & \file{pixi.toml}, the \emph{manifest} & \file{pixi.lock}, the \emph{lock file} \\
+\midrule
+written by & you & pixi, never by hand \\
+says       & what the project needs: \texttt{root\_base >=6.36} & exactly what was installed:
+                                                             every package, version and build, per platform \\
+changes    & when you change the requirements & when pixi solves again (\cmd{pixi add}, \cmd{pixi update}) \\
+gives      & the recipe & the same environment for everybody, and for CI \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Installing pixi}
+
+\begin{shell}
+curl -fsSL https://pixi.sh/install.sh | bash
+# open a new terminal, then:
+pixi --version
+\end{shell}
+
+\begin{pitfall}
+pixi keeps downloaded packages in a cache (\cmd{pixi info} shows where) and
+the environments in each project's \file{.pixi/}. Both can take several
+gigabytes. On machines with a small home quota, such as lxplus, point the
+cache at a larger disk with \cmd{export PIXI\_CACHE\_DIR=<somewhere big>} in
+your shell's start-up file. \tbd{recommended location on the tutorial machines}
+\end{pitfall}
+
+\section{Your first workspace}
+
+\begin{exercise}{An environment with PyROOT}
+\label{ex:pixifirst}
+Next to your git playground:
+\begin{shell}
+mkdir pixi-playground && cd pixi-playground
+git init
+pixi init                                  # writes pixi.toml, .gitignore, .gitattributes
+pixi add python "root_base>=6.36"          # solves, writes pixi.lock, installs
+pixi run python -c "import ROOT; print(ROOT.gROOT.GetVersion())"
+\end{shell}
+Open \file{pixi.toml}: what did \cmd{pixi add} write into it? Look at the size
+of \file{pixi.lock} and search it for \texttt{root\_base}: which exact version
+and build did you get? What does the new \file{.gitignore} keep out of git?
+Commit the project:
+\begin{shell}
+git add pixi.toml pixi.lock .gitignore .gitattributes
+git commit -m "feat: environment with PyROOT"
+\end{shell}
+\end{exercise}
+
+\begin{checkpoint}
+A ROOT version of 6.36 or later printed, and one commit containing the four
+files, but not \file{.pixi/}.
+\end{checkpoint}
+
+There are two ways to use the environment:
+
+\begin{description}[style=nextline]
+  \item[\cmd{pixi run <command>}] runs one command inside the environment
+    and returns. Use it in scripts, in CI, and whenever you can.
+  \item[\cmd{pixi shell}] opens a shell with the environment active until you
+    \cmd{exit}. Convenient for interactive work; leave it before you enter
+    the shell of another project, or you get a mixture of both.
+\end{description}
+
+\section{Tasks}
+
+Typing the same long commands is error-prone, and the next person will type
+them differently. A \emph{task} gives a command a name, stored in the
+manifest, so that everybody, including CI, runs exactly the same thing.
+
+\begin{exercise}{Name your commands}
+\label{ex:pixitasks}
+\begin{shell}
+echo 'import ROOT; print("hello from ROOT", ROOT.gROOT.GetVersion())' > hello.py
+pixi task add hello "python hello.py"
+pixi run hello
+pixi task list
+\end{shell}
+Look at the \texttt{[tasks]} table in \file{pixi.toml}. Tasks can depend on
+other tasks and take arguments; edit the table by hand to:
+\begin{tomlcode}
+[tasks]
+hello = "python hello.py"
+greet = { cmd = "echo Hello, {{ name }}", args = ["name"] }
+all = { cmd = "echo done", depends-on = ["hello"] }
+\end{tomlcode}
+and try \cmd{pixi run greet SHiP} and \cmd{pixi run all}. Commit.
+\end{exercise}
+
+\section{More than one environment}
+
+Some tools are needed only for some jobs: a linter, a benchmark tool, a
+documentation generator. pixi groups them into \emph{features} and combines
+features into named \emph{environments}, so that the linter does not end up
+in the analysis environment.
+
+\begin{exercise}{A separate environment for the linter}
+\begin{shell}
+pixi add --feature lint ruff
+pixi workspace environment add lint --feature lint --no-default-feature
+pixi task add --feature lint lint "ruff check ."
+pixi run lint                  # pixi picks the environment that has the task
+pixi run -e lint ruff --version
+\end{shell}
+Read the \texttt{[feature.lint]} and \texttt{[environments]} tables that
+appeared in \file{pixi.toml}. Write an unused \texttt{import os} into
+\file{hello.py} and run \cmd{pixi run lint} again. Remove it, and commit.
+\end{exercise}
+
+\section{Keeping everybody on the same versions}
+
+\begin{description}[style=nextline]
+  \item[\cmd{pixi install -{}-locked}] installs exactly what \file{pixi.lock}
+    says, and fails if the lock no longer matches the manifest. This is what
+    CI runs: a change of requirements must come with its lock file.
+  \item[\cmd{pixi update}] solves again and moves to newer versions within
+    the manifest's ranges. The new \file{pixi.lock} is a change like any
+    other: commit it, on its own, so that its effect can be tested and
+    reviewed. In the ShipSoft repositories a bot opens such a pull request
+    every month (\cref{ch:ci}).
+  \item[\cmd{pixi list}] shows the installed packages and versions.
+\end{description}
+
+\begin{pitfall}
+Never edit \file{pixi.lock} by hand, and do not resolve conflicts inside it
+(the \file{.gitattributes} that \cmd{pixi init} writes tells git not to
+try). If a rebase conflicts on \file{pixi.lock}, take the version of
+\texttt{main} (\cmd{git checkout upstream/main -{}- pixi.lock}), run
+\cmd{pixi install} to solve again with your manifest, and \cmd{git add} the
+result. Better still: do not change the environment in a pull request that is
+about something else.
+\end{pitfall}
+
+\section{How the ShipSoft repositories use pixi}
+
+Every repository has a \file{pixi.toml} and a \file{pixi.lock} at its top.
+Their channels are the SHiP channel on \texttt{prefix.dev} and
+\texttt{conda-forge}.
+Building and testing are tasks, chained with \texttt{depends-on}, so that one
+command does everything that is needed. From \repo{Shannon}:
+\begin{tomlcode}
+build = { cmd = "cmake --build build -j8", depends-on = ["configure"] }
+install = { cmd = "cmake --install build", depends-on = ["build"] }
+test = { cmd = "ctest --test-dir build --output-on-failure", depends-on = ["build"] }
+smoke = { cmd = "scripts/smoke.sh", depends-on = ["build"] }
+\end{tomlcode}
+so \cmd{pixi run test} configures, builds and tests a fresh checkout.
+
+\begin{itemize}
+  \item \textbf{A \texttt{lint} environment} holds the formatting and lint
+    tools (\texttt{prek}, \texttt{ruff}, \texttt{clang-format},
+    \texttt{codespell}, \texttt{commitizen}, \ldots).
+    \cmd{pixi run lint} checks every file; \cmd{pixi run install-hooks}
+    installs git hooks that run the same checks at every commit.
+  \item \textbf{Other environments} for special jobs, such as \texttt{bench}
+    for benchmarks in \pkg{aegir}.
+  \item \textbf{A commented-out \texttt{dev} feature} builds a dependency
+    from a local checkout, for changing two packages at once (see the
+    developer guide of the SHiP documentation). It stays commented out in
+    commits, together with the lock-file changes it causes.
+  \item \textbf{CI runs the same tasks}, with \cmd{-{}-locked}
+    (\cref{ch:ci}). If \cmd{pixi run -{}-locked test} passes on your machine,
+    the build check passes in CI.
+\end{itemize}
+
+\begin{levelcheck}
+\begin{itemize}
+  \can say what belongs in \file{pixi.toml} and what in \file{pixi.lock}, and
+       why both are committed;
+  \can create a workspace, add packages, and run a command in it with
+       \cmd{pixi run} or \cmd{pixi shell};
+  \can define tasks, and a second environment from a feature;
+  \can reproduce an environment exactly with \cmd{-{}-locked}, and update it
+       on purpose.
+\end{itemize}
+\end{levelcheck}
+
+\begin{solution}
+The commands of this chapter were checked with pixi~0.82: \cmd{init},
+\cmd{task add}, task arguments and \texttt{depends-on}, \cmd{add -{}-feature},
+\cmd{workspace environment add -{}-feature -{}-no-default-feature}, automatic
+environment selection for a feature-only task, and \texttt{PIXI\_CACHE\_DIR}.
+Solving \texttt{python} and \texttt{root\_base} needs network access to
+\texttt{conda-forge} and was not run in the review environment: do
+\cref{ex:pixifirst} once on the tutorial machines.
+\end{solution}

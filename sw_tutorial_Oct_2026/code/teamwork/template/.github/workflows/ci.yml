@@ -1,0 +1,57 @@
+# SPDX-FileCopyrightText: 2026 CERN for the benefit of the SHiP Collaboration
+# SPDX-License-Identifier: LGPL-3.0-or-later
+#
+# Continuous integration of the team analysis, laid out like the ShipSoft
+# repositories: one job per kind of check, and a final job whose name is the
+# single required status check of the repository ("All checks passed").
+
+name: CI
+
+on:
+  pull_request:           # every push to a pull request
+    branches: [main]
+  push:                   # every new commit on main
+    branches: [main]
+  merge_group:            # the merge queue re-checks before it merges
+  workflow_dispatch:      # a "Run workflow" button in the Actions tab
+
+concurrency:              # a new push cancels the run for the previous one
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tasks:
+    name: Task checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7               # the commit being tested
+      - uses: prefix-dev/setup-pixi@v0.11.0     # pixi, and the environment from pixi.lock
+        with:
+          locked: true
+      - name: Test every task
+        run: pixi run --locked check
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: prefix-dev/setup-pixi@v0.11.0
+        with:
+          environments: lint
+          locked: true
+      - name: ruff
+        run: pixi run --locked -e lint lint
+
+  all-checks:
+    name: All checks passed
+    if: always()
+    runs-on: ubuntu-latest
+    needs: [tasks, lint]
+    steps:
+      - name: Check status of all jobs
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "One or more jobs failed or were cancelled"
+            exit 1
+          fi

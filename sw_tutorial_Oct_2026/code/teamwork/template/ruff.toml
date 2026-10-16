@@ -1,0 +1,7 @@
+# Static checks run by `pixi run lint` and by CI.
+line-length = 100
+target-version = "py311"
+
+[lint]
+# pycodestyle errors and warnings, pyflakes (unused names, undefined names, ...)
+select = ["E", "W", "F"]

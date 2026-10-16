@@ -1,0 +1,85 @@
+\chapter{Review scope and source revisions}
+\label{app:review}
+
+This review checks the supplied booklet against public repository source
+snapshots retrieved on 15 October 2026. The revisions below identify the
+reviewed code; they are \emph{not} a jointly tested software release.
+The tutorial remains on the data-model 0.5 API. Development-head 0.6 changes
+are discussed explicitly rather than silently mixed into that workflow.
+
+\section{Checked primary sources}
+
+The revision links open the exact source trees used for the review.
+\begin{center}\small
+\begin{tabularx}{\linewidth}{l l L}
+\toprule Repository & Revision & Main checks \\ \midrule
+EventCalc & \href{https://github.com/ShipSoft/EventCalc/tree/7c9be2ad88ee26873d3667a3c283f3f9c0decb9d}{\texttt{7c9be2ad88}} & Launch-card schema, event weights and coordinate convention \\
+Geometry & \href{https://github.com/ShipSoft/Geometry/tree/32dde5e21331edcf04b55be0afd833527de10131}{\texttt{32dde5e213}} & Coordinates, volume names, subsystem envelopes and tasks \\
+Shannon & \href{https://github.com/ShipSoft/Shannon/tree/908bccf8ba212d3d0fd1d0de30bbd62f5373dc04}{\texttt{908bccf8ba}} & Input layout, smearing, spill seeds and per-object output \\
+Trout & \href{https://github.com/ShipSoft/Trout/tree/5c0d1e4c33fe9de6c89aa9c8abd42a94121fdd76}{\texttt{5c0d1e4c33}} & Hit-stream input and reconstruction scope \\
+aegir & \href{https://github.com/ShipSoft/aegir/tree/43d0a32a60d37916876ec3ce8d6055a462e4108b}{\texttt{43d0a32a60}} & Input, sensitive-volume matching, scoring, field and output plugins \\
+data-model & \href{https://github.com/ShipSoft/data-model/tree/09fb209fbb4fefd6f7dedaee98a3ce3631e3ceca}{\texttt{09fb209fbb}} & 0.6 API changes and backward-read exceptions \\
+field\_service & \href{https://github.com/ShipSoft/field_service/tree/474d8028508fe105199db61b89ba2f8ccd24cd3e}{\texttt{474d802850}} & Dependency constraints, map I/O, interpolation and tools \\
+geometry\_service & \href{https://github.com/ShipSoft/geometry_service/tree/5afd27373e6da298b25d1b9a1946aaba375bf51e}{\texttt{5afd27373e}} & Geometry interface, lazy conversion and shared service \\
+sea-cucumber & \href{https://github.com/ShipSoft/sea-cucumber/tree/bb2b0bbf64d8a7b97ea813e2a8faf6e7de5664b4}{\texttt{bb2b0bbf64}} & CLI, view rules, entry indexing and geometry backend \\
+.github & \href{https://github.com/ShipSoft/.github/tree/a788c399d8fc5521e40ef1f8e3fd0df3f8a306db}{\texttt{a788c399d8}} & Branch rulesets, merge methods and required checks (\cref{sec:pullrequests}) \\
+\bottomrule\end{tabularx}\end{center}
+
+Particularly relevant files are \file{data-model/tests/data/README.md}
+(schema migration exceptions), the packages' \file{pixi.toml} manifests,
+\file{aegir/src/detector\_construction.hpp} (substring-to-detector mapping),
+\file{aegir/src/geant4\_sim\_core.hpp} (positive-deposit scoring),
+\file{Shannon/src/digitise\_hits.cpp} (random streams), and the EventCalc
+README's event-format description. Full commit IDs are included in
+\file{reviewed\_sources.json}; the accompanying \file{REVIEW.md} records
+changes and validation limits.
+
+\section{Before the tutorial session}
+
+\begin{enumerate}
+\item Freeze compatible package revisions and lock files. Resolve the
+field-service 0.6 versus aegir 0.5 dependency conflict; pin the display to a
+compatible data model. Verify all packages on the intended machines.
+\item Provide the HNL input and converter with their mass, lifetime, channel,
+exposure, frame transform, mother links and weight convention. Preserve
+\field{original\_event\_id} and the expected-yield metadata.
+\item Provide field maps, their names and coordinate placements. Check the
+maps against the exact geometry database used by all consumers.
+\item Review the five detector selectors. Broad subsystem matching includes
+passive material and cannot support physical veto efficiencies or calorimeter
+response without an active-volume mapping or filter.
+\item Run the full chain on the frozen sample, verify schema readback in each
+environment, and replace the remaining \textbf{TBD} values with measured
+results (including runtime and disk requirements).
+\end{enumerate}
+
+\section{Accessibility and validation}
+
+The booklet uses dark blue and neutral tones on white, with dark text and
+light box backgrounds. Box titles state their meaning; arrows distinguish
+data, services and the future branch by solid, dashed and dotted strokes.
+No task or warning requires distinguishing hues. The supplied black SHiP
+logo is included without recolouring. Analysis plots use a high-contrast
+single-series line; Gaussian fits additionally use a black dashed line.
+This supports greyscale use and avoids dependence on red--green perception;
+it is not a claim of formal PDF accessibility certification.
+
+Both editions are compiled and visually checked. Python files are checked
+for syntax, and numerical/selection helpers are exercised with synthetic
+inputs. The EventCalc card and workflow structures are checked separately.
+No full Geant4 or digitisation run is claimed: the supplied archive has no
+ROOT event sample, maps or frozen integration environment.
+
+For Part~I, the script \file{tests/test\_git\_workflow.sh} runs every git
+command sequence of \cref{ch:git,ch:branches,ch:remotes,ch:team} against local bare repositories standing
+in for GitHub (forks, an out-of-date pull request, a rebase with and without
+conflict, a rebase-only merge queue). The team exercise (skeleton, per-task
+checker, sample generator and reference solutions) runs end to end in
+\file{tests/test\_teamwork.py} against a numerical stand-in for PyROOT
+(\file{tests/fakeroot/}); it has not yet been run with real ROOT. The pixi manifests and the task,
+feature and environment commands of \cref{ch:pixi} were checked with pixi~0.82
+on workspaces without packages (the package channels were not reachable from
+the review environment, so no environment was solved and no lock file for the
+team repository exists yet); both workflows of \cref{ch:ci} pass actionlint
+1.7.12, and all tutorial Python passes the ruff configuration CI uses. None of
+the workflows has run on GitHub.
