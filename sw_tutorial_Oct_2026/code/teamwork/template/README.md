@@ -25,23 +25,31 @@ Your reviewer is the person who uses what your function returns.
 
 ## Getting started
 
-You need git, [pixi](https://pixi.sh) and a GitHub account. pixi installs
-Python and ROOT for you, the same versions for everybody and for CI.
+You need an lxplus account with an SSH key known to GitHub, and pixi from
+CVMFS, which provides Python and ROOT, the same versions for everybody and
+for CI, without filling your AFS quota. Once, add this line to your
+`~/.bashrc` (open it in your editor) and open a new shell:
+
+```bash
+export PATH=/cvmfs/ship-nightlies.cern.ch/pixi/0.72.0-rattlerfs-layers-d5a7568/bin:$PATH
+```
+
+Use `pixi cvmfs <task>`; never `pixi run`, `pixi shell` or `pixi install`
+on lxplus, which install the environment into `.pixi/` on AFS.
 
 ```bash
 # 1. fork this repository on GitHub, then clone YOUR fork
-git clone git@github.com:<you>/<this-repository>.git
-cd <this-repository>
-git remote add upstream git@github.com:<organisers>/<this-repository>.git
-pixi install                       # the environment, from pixi.lock
+git clone git@github.com:<you>/sw_tutorial_2026.git
+cd sw_tutorial_2026
+git remote add upstream git@github.com:matclim/sw_tutorial_2026.git
 cp <wherever-it-is>/mystery.root . # data: not under version control
 
 # 2. one branch for your task
 git switch -c task-04-book-histogram
 
 # 3. write your function, then test it on its own
-pixi run check-task 4
-pixi run lint
+pixi cvmfs check-task 4
+pixi cvmfs lint
 
 # 4. commit, push to your fork, open a pull request
 git add mystery_analysis.py README.md
@@ -51,10 +59,10 @@ git push -u origin task-04-book-histogram
 
 | Command | What it does |
 |---------|--------------|
-| `pixi run analysis` | run every task that has been merged so far |
-| `pixi run check-task N` | test task N on its own, with a toy sample |
-| `pixi run check` | test every task (what CI runs) |
-| `pixi run lint` | static checks of the Python code (what CI runs) |
+| `pixi cvmfs analysis` | run every task that has been merged so far |
+| `pixi cvmfs check-task N` | test task N on its own, with a toy sample |
+| `pixi cvmfs check` | test every task (what CI runs) |
+| `pixi cvmfs lint` | static checks of the Python code (what CI runs) |
 
 Every pull request is checked by CI (`.github/workflows/ci.yml`); it can be
 merged when "All checks passed" is green and your reviewer has approved.

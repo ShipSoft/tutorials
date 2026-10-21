@@ -2,8 +2,10 @@
 \label{ch:geometry}
 
 \chaptergoals{3 of 11 in Part~II: the first package of the chain.}
-{\cref{ch:bigpicture}.}
-{build \file{ship\_geometry.db}, find any volume and its position, and name the volumes that will record hits.}
+{\cref{ch:bigpicture}; enough C++ to read a short program.}
+{build a small GeoModel geometry from scratch, look at any \file{.db} file in
+the Geant4 viewer and test it for overlaps, then build \file{ship\_geometry.db},
+find any volume in it and name the volumes that will record hits.}
 
 \section{GeoModel in a nutshell}
 
@@ -28,12 +30,258 @@ reconstruction) reads that file, so they all see exactly the same detector.
 
 In \repo{Geometry} each subsystem is a factory class in
 \file{subsystems/<Name>/} whose \texttt{build()} returns the subsystem's
-top volume; \texttt{SHiPGeometryBuilder} creates the world (the cavern) and
-places each subsystem at its $z$ position. Materials are defined once, in
-\texttt{SHiPMaterials}.
+top volume; \texttt{SHiP::geometry::DetectorBuilder} creates the world (the
+cavern) and places each subsystem at the $z$ position of its slot in
+\file{Layout.h}. Materials are defined once, in
+\texttt{SHiP::geometry::Materials}. (Before Geometry~0.3 these classes were
+\texttt{SHiPGeometryBuilder} and \texttt{SHiPMaterials}; the old names still
+work, with a deprecation warning.) Dimensions are typed
+quantities (\href{https://mpusz.github.io/mp-units/}{mp-units}), such as
+\texttt{2160.0 * units::mm}, converted to GeoModel's plain millimetres only
+when a shape is made, and many consistency checks run when the code is
+compiled: a subsystem that does not fit its slot or its hall fails the build,
+before any geometry exists.
+
+Before opening that, you will write a geometry of your own: one plane of the
+calorimeter, from nothing.
+
+\section{A calorimeter plane from scratch}
+\label{sec:caloplane}
+
+The SHiP electromagnetic calorimeter is a stack of lead plates and
+scintillator planes, $2.16\times2.16$\,m$^2$ each. A wide-bar plane is an air
+envelope of $2.16\,\mathrm{m}\times2.16\,\mathrm{m}\times1\,\mathrm{cm}$ filled
+with 36 bars of polyvinyltoluene (PVT) scintillator,
+$2.16\,\mathrm{m}\times6\,\mathrm{cm}\times1\,\mathrm{cm}$, side by side. That
+plane is what you build here, the way \repo{Geometry} builds it
+(\file{subsystems/Calorimeter}), but with nothing from the SHiP geometry
+library: GeoModel only.
+
+The tutorial files have their own small pixi workspace, with GeoModel, Geant4
+and the SHiP geometry service. Copy it and build everything once:
+\begin{shell}
+cp -r "$CODE/geometry" "$SHIP_TUTORIAL/geometry-tutorial"
+cd "$SHIP_TUTORIAL/geometry-tutorial"
+pixi cvmfs plane
+\end{shell}
+The first run sets up the environment, from CVMFS, and compiles the two
+programs of this section; \cmd{plane} then runs the first one, which writes \file{calo\_plane.db}.
+
+\subsection{The program, step by step}
+
+First the dimensions, as full lengths in millimetres, GeoModel's unit.
+36 bars of 60\,mm fill the 2160\,mm exactly:
+\codefile[linerange={33-44},basicstyle=\ttfamily\footnotesize]{C++}{code/geometry/calo_plane/build_calo_plane.cpp}
+
+Then the materials. GeoModel has no material database: an element is a name,
+a symbol, $Z$ and a molar mass; a material is a density and the mass fraction
+of each element, locked once complete. These are the definitions of
+\texttt{SHiP::geometry::Materials}:
+\codefile[linerange={46-70},basicstyle=\ttfamily\footnotesize]{C++}{code/geometry/calo_plane/build_calo_plane.cpp}
+
+Now the plane itself, in three steps: the envelope, one bar, and 36
+placements of that bar. Read the comments.
+\codefile[linerange={72-104},basicstyle=\ttfamily\footnotesize]{C++}{code/geometry/calo_plane/build_calo_plane.cpp}
+
+Two GeoModel habits show here. A shape takes \emph{half}-lengths, hence all
+the factors $0.5$. And a placement is three calls on the mother: a name tag
+and a transform, which apply to the next volume added, then the volume. The
+bars are 36 physical volumes of a single logical volume; GeoModel shares it,
+and so does Geant4 after the conversion.
+
+Finally the plane goes into a world, a box of air, and the tree is written
+to the database with the same two calls \cmd{build\_geometry} uses:
+\codefile[linerange={106-115},basicstyle=\ttfamily\footnotesize]{C++}{code/geometry/calo_plane/build_calo_plane.cpp}
+\codefile[linerange={119-138},basicstyle=\ttfamily\footnotesize]{C++}{code/geometry/calo_plane/build_calo_plane.cpp}
+
+\begin{exercise}{Predict, then check}
+\label{ex:planepredict}
+Before running anything else, from the code alone:
+\begin{enumerate}
+  \item How many logical volumes does \file{calo\_plane.db} contain, and how
+        many physical volumes?
+  \item Where is the centre of \texttt{bar\_0}, and between which $y$ values
+        does \texttt{bar\_35} lie?
+  \item What is the mass of the plane?
+\end{enumerate}
+Then check your answers:
+\begin{shell}
+pixi cvmfs check
+\end{shell}
+\cmd{check} runs the viewer of the next section without a window, on the
+macro \file{check\_plane.mac}: it prints the volume tree under the plane with
+names, materials, volumes, densities and the total mass, then tests every
+volume for overlaps.
+\end{exercise}
+
+\begin{solution}
+(1) Three logical volumes (\texttt{World}, \texttt{/tutorial/calo\_plane\_env},
+\texttt{/tutorial/calo\_plane/wide\_pvt\_h}) and 38 physical volumes (the
+world, the plane, 36 bars). (2) $y=-1050$\,mm; \texttt{bar\_35} lies between
+$+1020$ and $+1080$\,mm. (3) The bars fill the envelope completely, so the
+mass is PVT only: $216\times216\times1\,\mathrm{cm}^3\times1.032\,
+\mathrm{g/cm^3}=48.1$\,kg. The overlap test reports no overlaps.
+\end{solution}
+
+\section{Looking at a geometry with Geant4}
+\label{sec:g4view}
+
+The second program of the workspace, \cmd{ship\_g4view}, opens any GeoModel
+\file{.db} file in the Geant4 viewer. It converts the file to Geant4 with the
+SHiP geometry service, exactly as \pkg{aegir} does before a simulation
+(\cref{ch:services}), so what you see is what Geant4 will simulate. The heart
+of it is the detector construction:
+\codefile[linerange={67-76},basicstyle=\ttfamily\footnotesize]{C++}{code/geometry/viewer/ship_g4view.cpp}
+
+Everything else is driven by Geant4 macro commands, and the program adds one
+of its own, which chooses the file and must come before
+\cmd{/run/initialize}:
+\begin{lstlisting}[language=g4mac]
+/ship/geometry/open calo_plane.db
+\end{lstlisting}
+The command line is a short cut for the same commands:
+\cmd{ship\_g4view [-{}-batch] <file.db | macro.mac> ...} handles its
+arguments in order, a \file{.db} file becoming \cmd{/ship/geometry/open} and
+anything else \cmd{/control/execute}. Without a macro it runs \file{vis.mac};
+without \cmd{-{}-batch} it opens a window and waits for more commands. The
+workspace comes with these macros:
+
+\begin{center}\small
+\begin{tabularx}{\linewidth}{l L}
+\toprule
+Macro & What it does \\
+\midrule
+\file{vis.mac}         & initialise and draw the chosen geometry: the default \\
+\file{calo\_plane.mac} & open \file{calo\_plane.db}, draw it in colour, without the world (\cmd{pixi cvmfs view}) \\
+\file{check\_plane.mac}& no window: volume tree, mass and overlap test (\cmd{pixi cvmfs check}) \\
+\file{picture.mac}     & no window: save the picture as \file{geometry.png} (\cmd{pixi cvmfs picture}) \\
+\file{ship.mac}        & open \file{ship\_geometry.db} and draw one SHiP subsystem (\cref{sec:shipview}) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\codefile{g4mac}{code/geometry/calo_plane.mac}
+
+\begin{exercise}{Open the plane}
+\begin{shell}
+pixi cvmfs view
+\end{shell}
+A Qt window opens with the plane and a command line at the bottom. Rotate
+and zoom with the mouse. Type
+\cmd{/vis/viewer/set/style wireframe}: can you count the bars? Then
+\cmd{/vis/viewer/set/viewpointThetaPhi 0 0 deg}, to look along the beam.
+\end{exercise}
+
+\begin{pitfall}
+On lxplus the window comes to your screen through X11: log in with
+\cmd{ssh -Y lxplus.cern.ch}. OpenGL through X11 is slow and sometimes
+refused; Geant4's software-rendered Qt viewer avoids it:
+\cmd{G4VIS\_DEFAULT\_DRIVER=TSG\_QT\_ZB pixi cvmfs view}. Without X11 at all,
+run \cmd{pixi cvmfs picture} and copy \file{geometry.png} to your own machine
+(\cmd{scp}), or run any macro with \cmd{-{}-batch}.
+\end{pitfall}
+
+\begin{exercise}{Shoot a muon through it}
+\label{ex:planemuon}
+The viewer has a particle gun, by default a geantino (a test particle that
+interacts with nothing) starting at $z=-400$\,mm and flying along $z$. In the
+window's command line:
+\begin{lstlisting}[language=g4mac]
+/gun/particle mu-
+/gun/energy 10 GeV
+/gun/position 0 15 -400 mm
+/tracking/verbose 1
+/run/beamOn 1
+\end{lstlisting}
+The track appears in the picture, and \cmd{/tracking/verbose 1} prints every
+step: its position, the energy deposited (\texttt{dEStep}) and the volume
+entered next (\texttt{NextVolume}). Which bar did the muon cross, and how much
+energy did it leave in it? Repeat with \cmd{/gun/position 0 0 -400 mm}: what is
+special about $y=0$?
+\end{exercise}
+
+\begin{solution}
+\texttt{bar\_18}, which covers $0<y<60$\,mm. A 10\,GeV muon is close to
+minimum ionising and leaves about 2\,MeV in 1\,cm of PVT, with the usual
+Landau fluctuations (and occasionally a $\delta$-ray). $y=0$ is the boundary
+between \texttt{bar\_17} and \texttt{bar\_18}: the muon flies along the
+common face, and which bar Geant4 places it in is a matter of rounding.
+\end{solution}
+
+\section{Changing the geometry}
+
+Each change is made in the builder of the plane:
+\begin{shell}
+vim calo_plane/build_calo_plane.cpp
+\end{shell}
+\cmd{pixi cvmfs check} and
+\cmd{pixi cvmfs view} rebuild and rewrite \file{calo\_plane.db} first.
+
+\begin{exercise}{One bar too many}
+\label{ex:overlap}
+Replace the computed number of bars by \texttt{constexpr int kNBars = 37;}
+and run \cmd{pixi cvmfs check}. What does the overlap test report, and for
+which bars? Look at the plane with \cmd{pixi cvmfs view}. Then undo the change.
+\end{exercise}
+
+\begin{solution}
+The bars are still centred, so they now run from $y=-1110$ to $+1110$\,mm in
+an envelope of half-width 1080\,mm: \texttt{bar\_0} and \texttt{bar\_36}
+stick out of their mother by 30\,mm, and \cmd{/geometry/test/run} reports an
+overlap with the mother volume for those two. Neighbouring bars only touch,
+which is not an overlap. A geometry that overlaps makes Geant4 navigation
+undefined: particles get stuck or skip volumes, without any error message.
+\end{solution}
+
+\begin{exercise}{Vertical bars}
+\label{ex:vbars}
+The calorimeter alternates planes of horizontal (``h'') and vertical (``v'')
+bars. Add a second plane, 2\,cm downstream of the first (centred at
+$z=+20$\,mm), whose bars run along $y$. Its bar is a second logical volume,
+\texttt{/tutorial/calo\_plane\_v/wide\_pvt\_v}, with $x$ and $y$ exchanged.
+Make \texttt{buildPlane} take the orientation as an argument rather than
+copying it.
+\end{exercise}
+
+\begin{exercise}{A lead plate}
+\label{ex:lead}
+In the ECAL each scintillator plane follows a lead plate,
+$2.16\times2.16\,\mathrm{m}^2\times3$\,mm. Define lead (element Pb, $Z=82$,
+207.2\,g/mol; density 11.34\,g/cm$^3$, as in \texttt{Materials}) and place a
+plate centred at $z=-10$\,mm. Check the result with \cmd{pixi cvmfs check}
+(change the volume in \file{check\_plane.mac} to \texttt{world}) and shoot
+electrons instead of muons: \cmd{/gun/particle e-}, \cmd{/gun/energy 1 GeV}.
+\end{exercise}
+
+\begin{solution}
+A complete solution of both exercises is in \file{code/geometry/organiser/},
+\file{build\_calo\_module.cpp}. There \texttt{buildPlane}
+takes a \texttt{BarAxis}, creates the bar shape with $x$ and $y$ exchanged for
+\texttt{AlongY}, and places the bars along $x$; the world receives the lead
+plate, the h plane and the v plane at $z=-10$, $0$ and $+20$\,mm. The lead
+plate weighs $216\times216\times0.3\,\mathrm{cm}^3\times11.34\,\mathrm{g/cm^3}
+=158.7$\,kg, each plane 48.1\,kg; with the world included, the tree also
+counts about 11.5\,kg of air. Electrons now start showering in the lead (3\,mm
+is about half a radiation length), and the planes see several tracks instead
+of one.
+\end{solution}
+
+\begin{organisernote}
+\file{code/geometry/organiser/} holds the solution of \cref{ex:vbars,ex:lead};
+the participant archive leaves it out. The geometry workspace was written
+against the APIs used in \repo{Geometry}, \repo{geometry\_service} and
+\pkg{aegir} and syntax-checked against the Geant4~11.4.2 headers, but it has
+not been compiled against GeoModel: run \cmd{pixi cvmfs check}, \cmd{pixi cvmfs
+view} and the exercises once on lxplus before the tutorial. Create
+\file{pixi.lock} first with \cmd{pixi lock} and commit it, so that everybody
+gets the same versions; check that every package of the lock is available
+through \cmd{pixi cvmfs}.
+\end{organisernote}
 
 \section{Coordinates, units and names}
 \label{sec:coordinates}
+
+Back to SHiP. Its geometry follows these conventions:
 
 \begin{center}
 \begin{tabularx}{0.9\linewidth}{lL}
@@ -50,7 +298,8 @@ Beam axis& 1.7\,m above the cavern floor \\
 
 Volume names follow a path convention: \texttt{/SHiP/<subsystem>/<part>}, for
 example \texttt{/SHiP/trackers/straw\_gas} or
-\texttt{/SHiP/timing\_detector/bar}. Downstream code selects volumes by
+\texttt{/SHiP/timing\_detector/bar}, just as your plane used
+\texttt{/tutorial/\ldots}. Downstream code selects volumes by
 matching on these names, so they matter: you will use them in
 \cref{ch:aegir} to tell Geant4 which volumes are sensitive.
 
@@ -86,12 +335,12 @@ it is) is tabulated in \file{subsystem\_envelopes.csv} in the same repository.
 \begin{exercise}{Build \file{ship\_geometry.db}}
 In your \file{Geometry} checkout:
 \begin{shell}
-pixi run geometry
+pixi cvmfs geometry
 ls -lh build/ship_geometry.db
 \end{shell}
 The \cmd{geometry} task compiles the package and runs
-\cmd{build/apps/build\_geometry build/ship\_geometry.db}. Copy the result to
-your working directory, where all later chapters expect it:
+\cmd{build/apps/build\_geometry -o build/ship\_geometry.db}. Copy the result
+to your working directory, where all later chapters expect it:
 \begin{shell}
 cp build/ship_geometry.db "$SHIP_TUTORIAL/work/"
 \end{shell}
@@ -99,15 +348,37 @@ cp build/ship_geometry.db "$SHIP_TUTORIAL/work/"
 
 \begin{note}
 The \texttt{shipgeometry} conda package installs \cmd{build\_geometry} too,
-so in the \pkg{aegir} environment \cmd{pixi run build\_geometry} writes the
-same file into the current directory without compiling anything. Building
-from the \repo{Geometry} checkout is what you do once you change the
-description.
+so in the \pkg{aegir} environment it writes the same file without compiling
+anything. Check its options with \cmd{build\_geometry --help}: the released
+0.2.1 takes the output file as a bare argument, later versions with
+\cmd{-o}. Building from the \repo{Geometry} checkout is what you do once you
+change the description.
 \end{note}
+
+\begin{exercise}{One subsystem on its own}
+\cmd{build\_geometry} can also build single subsystems:
+\begin{shell}
+pixi cvmfs ./build/apps/build_geometry --list
+pixi cvmfs ./build/apps/build_geometry --standalone Calorimeter \
+    -o build/calorimeter.db
+cp build/calorimeter.db "$SHIP_TUTORIAL/geometry-tutorial/"
+\end{shell}
+In the geometry workspace, look at it with \cmd{pixi cvmfs view calorimeter.db}.
+Find a wide-bar plane: how does it compare with yours from \cref{sec:caloplane}?
+\end{exercise}
+
+\begin{solution}
+\cmd{--list} prints the subsystem names. With \cmd{--standalone} the
+calorimeter is built on its own at the origin, in its local frame. Its ECAL
+is a stack of lead plates and scintillator planes; each wide-bar plane is an
+air envelope (\texttt{\ldots\_env}) holding 36 bars of 60\,mm,
+\texttt{/SHiP/calorimeter/wide\_pvt\_h\ldots} or \texttt{\_v\ldots}, exactly
+as in the tutorial plane; the real calorimeter tiles $2\times3$ such modules.
+\end{solution}
 
 \begin{exercise}{Validate it}
 \begin{shell}
-pixi run ./build/apps/validate_geometry build/ship_geometry.db
+pixi cvmfs ./build/apps/validate_geometry build/ship_geometry.db
 \end{shell}
 The validator checks the database structure and prints the volumes, the
 materials and the positions it finds. Skim the material list: which material
@@ -121,19 +392,32 @@ volume \texttt{/SHiP/trackers/straw\_gas} inside a mylar wall
 scintillator).
 \end{solution}
 
-\section{Looking at the geometry}
+\section{Looking at the SHiP geometry}
+\label{sec:shipview}
 
-\cmd{gmex}, the GeoModel explorer, opens a \file{.db} file directly:
+The viewer of \cref{sec:g4view} opens \file{ship\_geometry.db} like any other
+file. The whole detector has hundreds of thousands of volumes, so
+\file{ship.mac} draws one subsystem, the calorimeter, and you add others by
+the names of their top volumes:
+\begin{center}\small\ttfamily
+\begin{tabular}{lll}
+/SHiP/target            & /SHiP/upstream\_tagger & /SHiP/magnet \\
+/SHiP/muon\_shield      & /SHiP/decay\_volume    & /SHiP/timing\_detector \\
+/SHiP/neutrino\_detector& /SHiP/trackers         & /SHiP/calorimeter \\
+\end{tabular}
+\end{center}
 \begin{shell}
-pixi run gmex build/ship_geometry.db
+cd "$SHIP_TUTORIAL/geometry-tutorial"
+cp "$SHIP_TUTORIAL/work/ship_geometry.db" .
+pixi cvmfs view ship.mac
 \end{shell}
-In the volume tree on the left, expand \texttt{/SHiP}, tick the subsystems
-you want to see and use the mouse to rotate and zoom.
+In the window: \cmd{/vis/scene/add/volume /SHiP/trackers}.
 
 \begin{exercise}{Find the decay volume}
-Open the geometry in \cmd{gmex}. Show only the decay volume, the trackers and
-the calorimeter. Roughly where in $z$ does the decay volume start and end?
-Then check your estimate against \file{subsystem\_envelopes.csv}.
+Show the decay volume, the trackers and the calorimeter, and add a scale
+with \cmd{/vis/scene/add/scale 10 m}. Roughly where in $z$ does the decay
+volume start and end? Then check your estimate against
+\file{subsystem\_envelopes.csv}.
 \end{exercise}
 
 \begin{solution}
@@ -144,13 +428,18 @@ SBT 32.92--83.32\,m, tracker stations at 83.57--84.57, 85.57--86.57,
 96.87 to 99.77\,m.
 \end{solution}
 
-The event display can print the same information as text, which is quicker
-for scripting:
+For the names inside a subsystem, print its volume tree. In the window:
+\begin{lstlisting}[language=g4mac]
+/vis/ASCIITree/verbose 1
+/vis/drawTree /SHiP/timing_detector
+\end{lstlisting} The event display prints the same
+information without Geant4, which is quicker for scripting:
 
 \begin{shell}
 cd "$SHIP_TUTORIAL/sea-cucumber"
-pixi run sc --geometry ../work/ship_geometry.db --inspect 4
-pixi run sc --geometry ../work/ship_geometry.db --inspect 6 --inspect-match "*trackers*"
+pixi cvmfs run --geometry ../work/ship_geometry.db --inspect 4
+pixi cvmfs run --geometry ../work/ship_geometry.db --inspect 6 \
+    --inspect-match "*trackers*"
 \end{shell}
 
 The number after \cmd{--inspect} is the depth of the tree to walk;
@@ -159,11 +448,11 @@ The number after \cmd{--inspect} is the depth of the tree to walk;
 \begin{exercise}{The sensitive volumes}
 \label{ex:sensitive}
 In its default scoring mode, Geant4 records positive-energy-deposit steps
-only in volumes declared sensitive, and in
-\cref{ch:aegir} you will declare them by name. Using \cmd{--inspect},
-\cmd{gmex}, or the subsystem READMEs, find a name fragment that selects the
-active material of each of these five detectors. Decide whether a single
-substring can select it without also selecting passive material:
+only in volumes declared sensitive, and in \cref{ch:aegir} you will declare
+them by name. Using \cmd{/vis/drawTree}, \cmd{--inspect}, or the subsystem
+READMEs, find name fragments that select the active material of each of
+these five detectors; several fragments may name one detector. Can you select
+it without also selecting passive material?
 \begin{enumerate}[label=(\alph*)]
   \item the upstream background tagger (UBT) tiles;
   \item the surround background tagger (SBT) liquid-scintillator cells;
@@ -184,21 +473,24 @@ Names as built by the factories in \repo{Geometry}:
         walls of the same containers end in \texttt{\_W<n>}.
   \item \texttt{/SHiP/trackers/straw\_gas}.
   \item scintillators are \texttt{/SHiP/calorimeter/wide\_pvt\_\{h,v\}\ldots}
-        and \texttt{/SHiP/calorimeter/thin\_ps\_\{h,v\}\ldots}; absorbers are
-        \texttt{lead\_plate} and \texttt{iron\_plate}.
+        and \texttt{/SHiP/calorimeter/thin\_ps\_\{h,v\}\ldots}, and the
+        fibre cores of the HPL layers \texttt{HPL\_FiberCoreLog}, without the
+        \texttt{/SHiP/calorimeter/} prefix; absorbers are \texttt{lead\_plate}
+        and \texttt{iron\_plate}.
   \item \texttt{/SHiP/timing\_detector/bar}.
 \end{enumerate}
-The point of the exercise is the discussion in \cref{sec:sensitive}: Geant4
-matches \emph{substrings}, one fragment per detector, so for (a), (b) and (d)
-there is no single fragment that selects only the active parts. The workflow
-in \cref{ch:aegir} uses the subsystem prefixes and accepts the extra hits in
-passive material.
+The point of the exercise is the discussion in \cref{sec:sensitive}:
+\pkg{aegir} matches \emph{substrings}, but several fragments can name one
+detector, so (a), (c), (d) and (e) can be selected exactly: the workflow of
+\cref{ch:aegir} does. (b) cannot: cells and walls share the prefix, and the
+only distinguishing part, \texttt{\_C} against \texttt{\_W}, also occurs in
+other names (\texttt{HPL\_CasingLog}). The workflow accepts the wall hits.
 \end{solution}
 
 \begin{organisernote}
-Exercise~\ref{ex:sensitive} has no clean answer for three detectors with the
-current naming. Ask the Geometry and Shannon developers whether the factories
-should add a common tag to the active volumes (e.g.\ \texttt{\_sens}) before
-the tutorial; if they do, update \file{code/workflows/hnl\_sim.jsonnet} and
-this solution.
+Exercise~\ref{ex:sensitive} has no clean answer for the SBT with the current
+naming. Ask the Geometry developers whether the factories should tag the
+active volumes (e.g.\ \texttt{\_sens}) before the tutorial; if they do,
+update \file{code/workflows/muon\_gun.jsonnet}, \file{ft\_replay.jsonnet}
+and this solution.
 \end{organisernote}

@@ -5,11 +5,12 @@
 
 Shannon writes one RNTuple per hit collection, one entry per hit, plus a copy
 of the input simulated hits (`sim_hits`). The digitisers copy z, the energy
-deposit, the track ID and the PDG code unchanged, so a digitised hit with a unique composite key can be
-paired with the simulated hit it came from through that key. The script
+deposit, the track ID and the PDG code unchanged, so a digitised hit with a
+unique composite key can be paired with the simulated hit it came from through
+that key. The script
 histograms x_digi - x_sim and y_digi - y_sim and fits a Gaussian.
 
-    python digi_residuals.py hnl_digi.root --collection straw_tubes_hits
+    python digi_residuals.py ft_digi.root --collection straw_tubes_hits
 """
 
 import argparse
@@ -19,7 +20,7 @@ import ROOT
 
 import shipfiles as sf
 
-# collection -> (C++ hit type, SimHit::detectorId)
+# collection -> (C++ hit type, SimHit::detector_id)
 COLLECTIONS = {
     "ubt_hits": ("SHiP::UBTHit", sf.UBT),
     "sbt_hits": ("SHiP::SBTHit", sf.SBT),
@@ -30,7 +31,7 @@ COLLECTIONS = {
 
 
 def key(h):
-    return (h.trackId, h.pdgCode, h.position[2], h.energyDeposit)
+    return (h.track_id, h.pdg_code, h.position[2], h.energy_deposit)
 
 
 def main():
@@ -52,7 +53,7 @@ def main():
     seen = collections.Counter()
     for i in sim.entries():
         h = sim["hit"](i)
-        if h.detectorId != det:
+        if h.detector_id != det:
             continue
         k = key(h)
         seen[k] += 1
@@ -61,14 +62,14 @@ def main():
 
     digi = sf.EventFile(args.file, ntuple=args.collection)
     digi.view("hit", hit_type)
-    digi_counts = collections.Counter(key(digi["hit"](i).recHit) for i in digi.entries())
+    digi_counts = collections.Counter(key(digi["hit"](i).rec_hit) for i in digi.entries())
     ambiguous.update(k for k, n in digi_counts.items() if n > 1)
     r = args.range
     hx = ROOT.TH1D("res_x", f"{args.collection};x_{{digi}} - x_{{sim}} [mm];hits", 100, -r, r)
     hy = ROOT.TH1D("res_y", f"{args.collection};y_{{digi}} - y_{{sim}} [mm];hits", 100, -r, r)
     paired = unpaired = 0
     for i in digi.entries():
-        rec = digi["hit"](i).recHit
+        rec = digi["hit"](i).rec_hit
         k = key(rec)
         if k not in by_key or k in ambiguous:
             unpaired += 1

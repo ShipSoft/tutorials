@@ -1,56 +1,66 @@
 {
-  "review_date": "2026-10-15",
-  "method": "GitHub main snapshots fetched and inspected; not an integration build",
+  "review_date": "2026-10-21",
+  "method": "GitHub main snapshots (and the named pull-request heads) fetched and inspected; workflows evaluated with jsonnet and compared with aegir's; not an integration build",
   "sources": [
     {
-      "repo": "EventCalc",
-      "sha": "7c9be2ad88ee26873d3667a3c283f3f9c0decb9d",
-      "date": "2026-09-19T20:30:37Z"
-    },
-    {
       "repo": "Geometry",
-      "sha": "32dde5e21331edcf04b55be0afd833527de10131",
-      "date": "2026-10-13T20:07:53Z"
-    },
-    {
-      "repo": "Shannon",
-      "sha": "908bccf8ba212d3d0fd1d0de30bbd62f5373dc04",
-      "date": "2026-10-14T14:46:29Z"
-    },
-    {
-      "repo": "Trout",
-      "sha": "5c0d1e4c33fe9de6c89aa9c8abd42a94121fdd76",
-      "date": "2026-10-14T21:27:08Z"
+      "sha": "45fbeb6f9dcbdfa0b6116112200cc089f7b784c8",
+      "date": "2026-10-21T00:18:04+02:00"
     },
     {
       "repo": "aegir",
-      "sha": "43d0a32a60d37916876ec3ce8d6055a462e4108b",
-      "date": "2026-10-15T11:32:29Z"
+      "sha": "a65eed53d03ce14b68df49d3f922c04c283367d3",
+      "date": "2026-10-20T14:12:47+00:00"
     },
     {
       "repo": "data-model",
-      "sha": "09fb209fbb4fefd6f7dedaee98a3ce3631e3ceca",
-      "date": "2026-10-13T13:30:06Z"
+      "sha": "ba0dda8bb4b43b9d2a2ded3ede57bdb519ae8d12",
+      "date": "2026-10-17T22:33:32+02:00"
     },
     {
       "repo": "field_service",
-      "sha": "474d8028508fe105199db61b89ba2f8ccd24cd3e",
-      "date": "2026-10-13T17:35:19Z"
+      "sha": "6587979624a98713e5c7045b69b4be39f6dc1797",
+      "date": "2026-10-20T23:43:16+02:00"
     },
     {
       "repo": "geometry_service",
-      "sha": "5afd27373e6da298b25d1b9a1946aaba375bf51e",
-      "date": "2026-10-12T10:49:35Z"
+      "sha": "8e6792570fad3dce7349aeb992e734f860b1356f",
+      "date": "2026-10-20T01:42:59+02:00"
+    },
+    {
+      "repo": "Shannon",
+      "sha": "7d9f89a47a09c6865124e532c49ef9206661da57",
+      "date": "2026-10-20T03:44:58+02:00"
     },
     {
       "repo": "sea-cucumber",
-      "sha": "bb2b0bbf64d8a7b97ea813e2a8faf6e7de5664b4",
-      "date": "2026-09-28T05:32:10Z"
+      "sha": "15ce818e39d8d21d508bd9dc327a706b738f7125",
+      "date": "2026-10-20T22:43:38+02:00"
+    },
+    {
+      "repo": "Trout",
+      "sha": "d397c33d38108e7beaf4e32d9c46b7151200e886",
+      "date": "2026-10-20T11:47:10+02:00"
     },
     {
       "repo": ".github",
-      "sha": "a788c399d8fc5521e40ef1f8e3fd0df3f8a306db",
-      "date": "2026-10-13T20:41:51Z"
+      "sha": "141170c66caa785af6b5cf30551359dc47e994c1",
+      "date": "2026-10-18T20:02:43+02:00"
+    },
+    {
+      "repo": "Geometry#116",
+      "sha": "ea270cbfd888cc1f054befee7bbf8abf7566bd07",
+      "date": "2026-10-20T19:01:39+02:00"
+    },
+    {
+      "repo": "Geometry#102",
+      "sha": "a8bf002099508301af6372c09b255bdb58160bc5",
+      "date": "2026-10-20T21:41:31+02:00"
+    },
+    {
+      "repo": "field_maps",
+      "sha": "f6234a00d2d5b2b257df410cd7c1459ad3bc236e",
+      "date": "2026-10-20T23:20:59+02:00"
     }
   ]
 }

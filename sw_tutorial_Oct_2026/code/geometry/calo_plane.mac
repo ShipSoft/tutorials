@@ -1,0 +1,10 @@
+# calo_plane.mac -- open the tutorial calorimeter plane and draw it.
+#   ship_g4view calo_plane.mac
+
+/ship/geometry/open calo_plane.db
+/control/execute vis.mac
+
+# The world is only air around the plane: hide it, colour the bars
+/vis/geometry/set/visibility World 0 false
+/vis/geometry/set/colour /tutorial/calo_plane/wide_pvt_h 0 0.2 0.5 0.9 1
+/vis/viewer/set/style surface

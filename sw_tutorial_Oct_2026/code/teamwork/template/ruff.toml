@@ -1,4 +1,4 @@
-# Static checks run by `pixi run lint` and by CI.
+# Static checks run by `pixi cvmfs lint` and by CI.
 line-length = 100
 target-version = "py311"
 

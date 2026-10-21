@@ -2,7 +2,7 @@
 \label{ch:digitisation}
 
 \chaptergoals{9 of 11 in Part~II.}
-{\cref{ch:aegir}: \file{hnl\_sim.root}.}
+{\cref{ch:aegir}: \file{muon\_gun.root}.}
 {digitise simulated hits, explain what the hit-stream output means for an analysis, and test the smearing.}
 
 \section{From energy deposits to detector hits}
@@ -23,7 +23,7 @@ a realistic electronics response and a real-data adapter are separate tasks.
 Plugin & Kind & Purpose \\
 \midrule
 \texttt{read\_sim\_file}            & source   & reads \texttt{sim\_hits} and \texttt{sim\_particles} from \pkg{aegir} output \\
-\texttt{digitise\_hits}             & transform& one digitiser per detector, chosen by \field{detectorId} \\
+\texttt{digitise\_hits}             & transform& one digitiser per detector, chosen by \field{detector\_id} \\
 \texttt{digitised\_output\_module}  & observer & one RNTuple per hit collection, validation histograms \\
 \bottomrule
 \end{tabularx}
@@ -39,11 +39,15 @@ writing all five share a placeholder model:
   \item each \texttt{SimHit} becomes exactly one detector hit;
   \item $x$ and $y$ are smeared with a Gaussian of $\sigma = 0.1$\,mm
         (\file{gaussian\_smearer.hpp}); $z$, the energy deposit, the momentum
-        and the truth links (\field{trackId}, \field{pdgCode}) are copied;
+        and the truth links (\field{track\_id}, \field{pdg\_code}) are copied;
   \item a time offset is added: \pkg{Shannon} places each simulated event at a
         random time within the fraction of a spill that the simulated protons
         on target correspond to (the \texttt{pot} parameter; a SPS spill is
-        1.2\,s for $4\times10^{13}$ protons).
+        1.2\,s for $4\times10^{13}$ protons). Our artificial muons do not
+        come from a number of protons, so here \texttt{pot} only sets the
+        window: with the 1000 protons of \cref{ch:production} it is 30\,ns,
+        the time those protons take to arrive. For a replay of a real
+        production, \texttt{pot} is the number of protons of stage~1.
 \end{itemize}
 
 There are no thresholds, no channel merging, no noise and no inefficiency yet.
@@ -59,37 +63,36 @@ the simulation entries changes the event-to-random-stream assignment.
 
 \section{Running it}
 
-The workflow is \file{code/workflows/hnl\_digi.jsonnet}:
+The workflow is \file{code/workflows/ft\_digi.jsonnet}:
 
-\codefile[linerange={17-70}]{jsonnet}{code/workflows/hnl_digi.jsonnet}
+\codefile[linerange={19-66},basicstyle=\ttfamily\footnotesize]{jsonnet}{code/workflows/ft_digi.jsonnet}
 
-\begin{exercise}{Digitise your simulated events}
-In the \pkg{Shannon} environment, from your working directory:
+\begin{exercise}{Digitise the muons}
+In the \pkg{Shannon} environment, from your working directory, with the 100
+entries of \file{muon\_gun.root} (\cref{ex:muongun}) and the 1000 protons of
+\cref{ex:production}:
 \begin{shell}
 cd "$SHIP_TUTORIAL/Shannon"
-pixi shell
+pixi cvmfs
 cd "$SHIP_TUTORIAL/work"
-phlex -j 4 -c <(jsonnet \
-    --ext-str entries=100 \
-    --ext-str infile=hnl_sim.root \
-    --ext-str digiout=hnl_digi.root \
-    --ext-str histo=hnl_digi_validation.root \
-    $CODE/workflows/hnl_digi.jsonnet)
+phlex -j 4 -c <(jsonnet --tla-str infile=muon_gun.root \
+    --tla-code entries=100 --tla-code pot=1000 \
+    $CODE/workflows/ft_digi.jsonnet)
 \end{shell}
-Set \texttt{entries} to the number of events you simulated.
 \end{exercise}
 
 \begin{checkpoint}
-\file{hnl\_digi.root} and \file{hnl\_digi\_validation.root} exist. In
-Python, \texttt{ROOT.TFile("hnl\_digi.root").ls()} lists seven RNTuples, and
+\file{ft\_digi.root} and \file{ft\_digi\_validation.root} exist. In
+Python, \texttt{ROOT.TFile("ft\_digi.root").ls()} lists seven RNTuples, and
 \texttt{h\_straw\_tubes\_multiplicity} in the validation file shows the number
-of straw hits per event.
+of straw hits per spill.
 \end{checkpoint}
 
 \begin{pitfall}
-``No digitiser registered for detector ID $n$'' means the simulation was run
-with an out-of-range detector ID. A reordered list using only IDs 0--4
-can silently dispatch to the wrong detector model (\cref{sec:sensitive}).
+``No digitiser registered for detector ID $n$'' means the input contains hits
+of a detector Shannon does not know, for example the scoring-plane hits
+(\field{detector\_id}~100) of a stage-1 file: digitise \file{muon\_gun.root},
+not the production.
 \end{pitfall}
 
 \section{A stream of hits, not a list of events}
@@ -111,26 +114,27 @@ For an analysis of \emph{simulated} events this has three consequences:
   \item \textbf{The generator record and the event weight are not copied.}
         \texttt{mc\_particles} and \texttt{event\_header} stay in the
         simulation file.
-  \item \textbf{Truth links are kept per hit:} \field{trackId} and
-        \field{pdgCode} survive in \texttt{RecHit}, but track IDs are only
+  \item \textbf{Truth links are kept per hit:} \field{track\_id} and
+        \field{pdg\_code} survive in \texttt{RecHit}, but track IDs are only
         unique within one simulated event.
 \end{enumerate}
 
 Inclusive distributions over all hits, such as positions, times, energy
 deposits and resolutions, come from the digitised file. Questions about one
-simulated event, such as ``both daughters crossed four straw stations'' or
-``the SBT stayed silent'', are answered from the simulation file.
+simulated event, such as ``this muon crossed four straw stations'' or
+``the SBT saw it'', are answered from the simulation file.
 \Cref{ch:analysis} is organised accordingly.
 
 \begin{organisernote}
 The hit-stream layout is intended (see the header comment of
 \file{Trout/src/io/read\_digitised\_hits.cpp}). What is missing for Monte
-Carlo studies is a way back from a digitised hit to its simulated event: with
-the default \texttt{pot}, every spill draws its time offset from the same
-0.3\,ns window, so neither time nor any field separates the events. A
-simulated-event index carried in the hit (or a truth-link collection), plus
-the weight, would let the analysis in \cref{ch:analysis} use digitised hits
-event by event. Worth raising with the \pkg{Shannon} developers; it is also a
+Carlo studies is a way back from a digitised hit to its simulated event. Even
+with \texttt{pot} set to the protons of stage~1, all events share a window of
+$1.2\,\mathrm{s}\times \texttt{POT}/(4\times10^{13})$, a few tens of
+nanoseconds for a thousand protons, and their hits overlap in time. A
+simulated-event index carried in the hit (or a truth-link collection) would
+let the analysis in \cref{ch:analysis} use digitised hits event by event.
+\pkg{Shannon}'s pull request~\#26 goes in that direction. Worth raising with the \pkg{Shannon} developers; it is also a
 good topic for the closing discussion.
 \end{organisernote}
 
@@ -141,10 +145,12 @@ because there is no event ID; the script excludes them. The script
 \file{code/analysis/digi\_residuals.py} does this for one collection and
 histograms the residual $x_\mathrm{digi} - x_\mathrm{sim}$:
 \begin{shell}
-python $CODE/analysis/digi_residuals.py hnl_digi.root --collection straw_tubes_hits
+python $CODE/analysis/digi_residuals.py ft_digi.root \
+    --collection straw_tubes_hits
 \end{shell}
 Fit the residual distribution. Does the width match the smearing in
-\file{gaussian\_smearer.hpp}? Repeat for \texttt{timing\_detector\_hits}.
+\file{gaussian\_smearer.hpp}? Repeat for \texttt{sbt\_hits}, where most of
+the hits of the muon background are.
 \end{exercise}
 
 \begin{solution}
@@ -161,7 +167,7 @@ In your \pkg{Shannon} checkout, give the straw digitiser its own resolution:
 in \file{src/detectors/straw\_tubes.hpp} construct the smearer as
 \texttt{GaussianSmearer smearer\_\{0.12, 0.12\};}, then
 \begin{shell}
-pixi run build
+pixi cvmfs build
 \end{shell}
 rerun the digitisation and the residual script, and check that only the
 straws changed. What would a realistic model need to know that a
@@ -170,7 +176,7 @@ straws changed. What would a realistic model need to know that a
 
 \begin{solution}
 The straw (wire) identity and orientation, which the hit's
-\field{geometryNodeId} or position must be mapped to through the geometry
+\field{geometry\_node\_id} or position must be mapped to through the geometry
 service; the drift-time relation; and the readout's time window. This is the
 kind of question that connects the digitisation to the geometry service and
 is a good lead-in to the reconstruction discussion.

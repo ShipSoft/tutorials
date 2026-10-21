@@ -2,8 +2,14 @@
 \label{ch:display}
 
 \chaptergoals{8 of 11 in Part~II.}
-{\cref{ch:aegir}: \file{hnl\_sim.root}; \file{ship\_geometry.db}.}
+{\cref{ch:aegir}: \file{muon\_gun.root}; \file{ship\_geometry.db}.}
 {look at simulated events in the REve and web displays, and write a view configuration of your own.}
+
+\begin{organisernote}
+This chapter needs \repo{sea-cucumber} at a revision with pull request~\#42
+(merged 20 October 2026), which moves it to data model~0.6 and starts the
+display with the \texttt{run} task.
+\end{organisernote}
 
 \section{Three inputs and nothing else}
 
@@ -18,7 +24,7 @@ It has two front ends sharing one core:
 
 \begin{description}[style=nextline]
   \item[the REve display] ROOT's web-based event display, one event at a
-    time, started with \cmd{pixi run sc};
+    time, started with \cmd{pixi cvmfs run};
   \item[the web display] a three.js page in your browser: the C++ side
     first writes the geometry and events to JSON files, which the page then
     renders. You can arrange any number of zoomed views and save the layout.
@@ -36,30 +42,42 @@ yet.
 
 \section{The REve display}
 
-\begin{exercise}{Your first HNL event}
+\begin{exercise}{Your first muons}
 From the \file{sea-cucumber} directory:
 \begin{shell}
-pixi run sc --geometry ../work/ship_geometry.db \
-            --data ../work/hnl_sim.root \
-            --view views/default.toml --event 0
+pixi cvmfs run --geometry ../work/ship_geometry.db \
+             --data ../work/muon_gun.root \
+             --view views/default.toml --event 0
 \end{shell}
-REve opens in a browser window. Rotate and zoom the main view. Find the decay
-vertex (a star marker), the two daughter tracks' hits in the straw stations,
-and their energy deposits in the calorimeter. Which daughter is the muon?
+REve opens in a browser window (on lxplus, see the organiser's instructions
+below). Rotate and zoom the main view. Find where the muon starts, at the
+back of the muon shield, and follow it through the decay volume and the
+detectors. Where does it end? Step through a few events (\cmd{--event 1},
+\cmd{--event 2}, \ldots) and compare which detectors have hits.
 \end{exercise}
 
+\begin{organisernote}
+REve is a web page served by ROOT. On lxplus it either opens a browser through
+the X11 connection (slow) or prints the address of the page, whose port must
+then be forwarded like the one of the web display. \tbd{settle the REve
+recipe on lxplus with the sea-cucumber developers, e.g.\ a fixed
+\texttt{WebGui.HttpPort} per participant and an SSH tunnel, and write it
+here}
+\end{organisernote}
+
 \begin{checkpoint}
-A star marker somewhere in the decay volume and two trails of hits downstream
-of it: four straw stations, the timing detector, and a cluster in the
-calorimeter.
+One track per event starting at $z=27$\,m, close to the beam axis, with hits
+in the UBT, in the four straw stations and, for most muons, in the timing
+detector and the calorimeter.
 \end{checkpoint}
 
 \begin{solution}
-A muon typically deposits relatively little energy in
-the calorimeter (a minimum-ionising trail through ECAL and HCAL), while a
-pion may start a hadronic shower. A non-interacting pion can also look
-minimum-ionising, so this is only a visual hint;
-the analysis in \cref{ch:analysis} identifies them from the truth record.
+At 20\,mrad or less from the beam, nearly every muon stays inside the decay
+volume, crosses the UBT in front of it and the straw stations behind it, and
+is bent in $x$ by the spectrometer magnet between stations 2 and 3. Muons
+between 10 and 100\,GeV do not stop in the calorimeter: they leave through
+its back. SBT hits are rare and usually come from secondaries.
+\Cref{ch:analysis} counts all this.
 \end{solution}
 
 \begin{pitfall}
@@ -68,32 +86,43 @@ at every start, and drawing all of it would make the display unusable, which
 is why \file{views/default.toml} excludes the straws, tiles and SBT cells.
 For repeated use, convert the geometry once into a cache:
 \begin{shell}
-pixi run geo-cache --geometry ../work/ship_geometry.db --view views/default.toml
-pixi run sc --geo-cache geocache --geometry ../work/ship_geometry.db \
-            --data ../work/hnl_sim.root --event 0
+pixi cvmfs geo-cache --geometry ../work/ship_geometry.db \
+    --view views/default.toml
+pixi cvmfs run --geo-cache geocache --geometry ../work/ship_geometry.db \
+             --data ../work/muon_gun.root --event 0
 \end{shell}
 \end{pitfall}
 
 \section{The web display}
 
 \begin{exercise}{All events in the browser}
-Produce the display files for all events, then serve them:
+Produce the display files for all events:
 \begin{shell}
-pixi run web-data --geometry ../work/ship_geometry.db \
-                  --data ../work/hnl_sim.root \
+pixi cvmfs web-data --geometry ../work/ship_geometry.db \
+                  --data ../work/muon_gun.root \
                   --view views/default.toml --events all
-pixi run web
 \end{shell}
-Open \url{http://localhost:8080}. Step through the events from the sidebar.
-Draw a rectangle on the main view to open a zoomed view of the spectrometer;
-save the layout.
+An lxplus node is shared by many people, so each of you serves the page on a
+port of your own, visible only on the node itself (\cmd{pixi cvmfs web}
+would use port 8080 for everybody):
+\begin{shell}
+PORT=$((8000 + $(id -u) % 1000)); hostname; echo $PORT
+pixi cvmfs python -m http.server $PORT --bind 127.0.0.1 --directory web
+\end{shell}
+On your own machine, in a second terminal, open a tunnel to that node and
+port (\texttt{lxplusNNN} is what \cmd{hostname} printed):
+\begin{shell}
+ssh -N -L 8080:localhost:<PORT> <you>@lxplusNNN.cern.ch
+\end{shell}
+Open \url{http://localhost:8080} in your browser. Step through the events from the sidebar.
+Draw a rectangle on the main view to open a zoomed view of the straw
+stations; save the layout.
 \end{exercise}
 
 \begin{note}
-The web page loads three.js from a public CDN. On a machine without internet
-access, see the \pkg{sea-cucumber} manual for serving it locally. If you work
-on a remote machine, forward the port: \cmd{ssh -L 8080:localhost:8080
-<host>}.
+The web page loads three.js from a public CDN, so your browser needs
+internet access; the \pkg{sea-cucumber} manual explains how to serve it
+locally instead.
 \end{note}
 
 \section{View configuration}
@@ -115,20 +144,21 @@ max_shapes = 6000
 
 Geometry colours are assigned by \texttt{[[geometry.style]]} rules, matched
 as substrings of volume names; the first matching rule wins. The full list of
-keys is in \file{docs/MANUAL.md} in the repository.
+keys is in \file{docs/manual.md} in the repository.
 
-\begin{exercise}{A view for the HNL}
-Copy \file{views/default.toml} to \file{views/hnl.toml} and edit the copy:
+\begin{exercise}{A view for the spectrometer}
+Copy \file{views/default.toml} to \file{views/spectrometer.toml} and edit the copy
+in your editor:
 \begin{enumerate}
   \item The style rules match names like \texttt{DecayVolume} or
         \texttt{Tracker}. Compare them with the volume names you found in
         \cref{ch:geometry}: which rules still apply? Change them to match the
         \texttt{/SHiP/\ldots} names.
-  \item Add a region showing the decay volume in the horizontal $xz$ projection (viewed along $y$)
-        (\texttt{camera = "xz"}, $z$ from 32\,000 to 84\,000\,mm) with the
-        decay vertex drawn (\texttt{draw\_decay = true}).
+  \item Add a region showing the straw stations and the magnet in the
+        horizontal $xz$ projection (viewed along $y$): \texttt{camera = "xz"},
+        $z$ from 83\,000 to 97\,000\,mm.
 \end{enumerate}
-Display a few events with \cmd{--view views/hnl.toml}.
+Display a few events with \cmd{--view views/spectrometer.toml}.
 \end{exercise}
 
 \begin{solution}
@@ -140,13 +170,11 @@ current names. Replacements: \texttt{decay\_volume}, \texttt{trackers},
 \texttt{target}, \texttt{magnet}, \texttt{sbt}. The region:
 \begin{tomlcode}
 [[region]]
-name = "DecayVolume"
-title = "Decay volume (side view)"
-zmin = 32000.0
-zmax = 84000.0
+name = "Spectrometer"
+title = "Straw stations and magnet (top view)"
+zmin = 83000.0
+zmax = 97000.0
 camera = "xz"
-draw_decay = true
-decay_clip = true
 max_shapes = 3000
 \end{tomlcode}
 \end{solution}
@@ -161,9 +189,11 @@ before the tutorial; if it is fixed, drop part~1 of the exercise.
 \end{organisernote}
 
 \begin{exercise}[colback=white]{Optional: with and without field}
-If you simulated \file{hnl\_sim\_nofield.root} in \cref{ch:aegir}, match the physical event using \field{event\_number}, then display its
-entry from each file side by side in two browser tabs. Where do
-the tracks start to differ, and in which direction are they bent?
+If you made \file{muon\_gun\_nofield.root} in \cref{ex:nofield}, match
+the physical event using \field{event\_number}, then display its entry from
+each file side by side in two browser tabs. Where do the tracks start to
+differ, and in which direction is the $\mu^-$ bent? With
+\file{muon\_gun\_mup.root} (\cref{ex:mup}), do the same for the $\mu^+$.
 The \cmd{--event} option selects an RNTuple entry index, not necessarily the
 stored \field{event\_number}; multithreaded outputs can have different order.
 \end{exercise}

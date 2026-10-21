@@ -2,8 +2,8 @@
 \label{ch:datamodel}
 
 \chaptergoals{5 of 11 in Part~II.}
-{\cref{ch:bigpicture}; the HNL input file from \cref{ch:setup}.}
-{name the event classes and their units, describe the layout of each kind of file, and open one from Python.}
+{\cref{ch:bigpicture}.}
+{name the event classes and their units, and describe the layout of each kind of file the chain writes.}
 
 \section{Plain structs, written as RNTuples}
 
@@ -28,29 +28,33 @@ are integers. The storage units are:
 
 \section{The classes in this tutorial}
 
+This booklet uses data model 0.6, in which every member name is snake\_case
+(\field{pdg\_code}, \field{track\_id}); the 0.5 spellings were camelCase
+(\cref{app:datamodel}).
+
 \begin{center}
 \small
 \begin{tabularx}{\linewidth}{P{2.6cm} P{2.9cm} L}
 \toprule
 Class & Produced by & Content \\
 \midrule
-\texttt{EventHeader}   & generator / converter & event \field{weight}, \field{original\_event\_id} \\
-\texttt{MCParticle}    & generator / converter & generator record: \field{pdgCode}, \field{vertex}, \field{momentum},
-                                                \field{energy} (total), \field{time}, \field{motherId},
+\texttt{EventHeader}   & generator / \texttt{file\_source} & event \field{weight}, \field{original\_event\_id} \\
+\texttt{MCParticle}    & generator, scoring plane & generator record: \field{pdg\_code}, \field{vertex}, \field{momentum},
+                                                \field{energy} (total), \field{time}, \field{mother\_id},
                                                 \field{mothers}, \field{status} \\
-\texttt{SimParticle}   & \pkg{aegir} (Geant4)  & every tracked particle: \field{trackId}, \field{parentId},
-                                                \field{pdgCode}, \field{vertex}, \field{endpoint},
+\texttt{SimParticle}   & \pkg{aegir} (Geant4)  & every tracked particle: \field{track\_id}, \field{parent\_id},
+                                                \field{pdg\_code}, \field{vertex}, \field{endpoint},
                                                 \field{momentum}, \field{energy} (kinetic),
-                                                \field{time}, \field{creatorProcess} \\
-\texttt{SimHit}        & \pkg{aegir} (Geant4)  & one positive-energy-deposit step in a sensitive volume (default scoring mode): \field{detectorId},
-                                                \field{geometryNodeId}, \field{trackId}, \field{pdgCode},
+                                                \field{time}, \field{creator\_process} \\
+\texttt{SimHit}        & \pkg{aegir} (Geant4)  & one hit in a sensitive volume or on a scoring plane: \field{detector\_id},
+                                                \field{geometry\_node\_id}, \field{track\_id}, \field{pdg\_code},
                                                 \field{position}, \field{momentum},
-                                                \field{energyDeposit}, \field{time}, \field{pathLength} \\
+                                                \field{energy\_deposit}, \field{time}, \field{path\_length} \\
 \texttt{RecHit}        & \pkg{Shannon}         & a digitised hit; same members as \texttt{SimHit}
-                                                minus \field{geometryNodeId} \\
+                                                minus \field{geometry\_node\_id} \\
 detector hits          & \pkg{Shannon}         & \texttt{UBTHit}, \texttt{SBTHit}, \texttt{StrawTubesHit},
                                                 \texttt{CaloHit}, \texttt{TimeDetHit}: one per detector,
-                                                each wrapping a \texttt{RecHit} as \field{recHit} \\
+                                                each wrapping a \texttt{RecHit} as \field{rec\_hit} \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -60,10 +64,11 @@ detector hits          & \pkg{Shannon}         & \texttt{UBTHit}, \texttt{SBTHit
 reconstruction.
 
 \subsection{Generator particles}
+\label{sec:mcstatus}
 
 \texttt{MCParticle::status} follows the HepMC convention. Generator adapters
-must map their native status codes to it; Pythia\,8 internal status codes
-should not be copied unchanged. What matters here:
+map their native status codes to it; Pythia\,8 internal status codes are not
+copied unchanged. What matters here:
 
 \begin{center}
 \begin{tabular}{cl}
@@ -77,10 +82,12 @@ should not be copied unchanged. What matters here:
 \end{tabular}
 \end{center}
 
-Mother links point into the same vector: \field{motherId} is the index of the
-first mother, or $-1$; \field{mothers} lists all of them. For our HNL events
-the vector is short, as \cref{ch:generator} shows: the HNL with status~2 and
-its two daughters with status~1, pointing back to it.
+Mother links point into the same vector: \field{mother\_id} is the index of
+the first mother, or $-1$; \field{mothers} lists all of them. The scoring
+plane of \cref{ch:production} writes its particles as \texttt{MCParticle}s
+too, so that the next stage can read them like generator particles: the
+tracks as they reached the plane with status~1, their ancestors with other
+statuses.
 
 \begin{pitfall}
 \texttt{MCParticle::energy} is the \emph{total} energy;
@@ -91,76 +98,67 @@ mass.
 
 \subsection{Simulated particles and hits}
 
-Every particle Geant4 tracks becomes a \texttt{SimParticle}. Its
-\field{trackId} is the Geant4 track ID, unique \emph{within one event}; the
-particles that came from the generator have \field{parentId}~$=0$, and every
-secondary points to the track that created it. \field{creatorProcess} is the
+Every particle Geant4 tracks and records becomes a \texttt{SimParticle}. Its
+\field{track\_id} is the Geant4 track ID, unique \emph{within one event}; the
+particles that came from the source have \field{parent\_id}~$=0$, and every
+secondary points to the track that created it. \field{creator\_process} is the
 Geant4 process sub-type that created it.
 
-In the default scoring mode, a Geant4 step inside a sensitive volume becomes
-a \texttt{SimHit} only if its deposited energy is positive. Crossing mode
-records volume entrances and has a different meaning. Its
-\field{trackId} says which particle made it, and its \field{detectorId} says
-which detector it is in. The detector numbering is fixed by the data model:
+In the default \emph{scoring} mode, a Geant4 step inside a sensitive volume
+becomes a \texttt{SimHit} if its deposited energy is positive. In
+\emph{crossing} mode a hit records the first step of a track in the volume,
+with no energy deposit. A scoring plane records every track that reaches it.
+\field{track\_id} says which particle made a hit, and \field{detector\_id}
+which detector it is in, with the numbering fixed by the data model:
 
 \begin{center}
 \begin{tabular}{cl}
 \toprule
-\field{detectorId} & detector \\
+\field{detector\_id} & detector \\
 \midrule
 0 & upstream background tagger (UBT) \\
 1 & surround background tagger (SBT) \\
 2 & straw tubes \\
 3 & calorimeter \\
 4 & timing detector \\
+100 & a scoring plane of \pkg{aegir} (its id in \field{geometry\_node\_id}) \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 \begin{pitfall}
-\pkg{aegir} assigns \field{detectorId} as the \emph{position} of the matching
-name in its \texttt{sensitive\_volumes} list, while \pkg{Shannon} interprets it
-with the table above. An ID outside 0--4 raises ``No digitiser registered
-for detector ID''; a wrong ordering within 0--4 silently calls the wrong digitiser. The list in the simulation workflow must
-therefore have exactly five entries, in this order (\cref{sec:sensitive}).
+\pkg{Shannon} digitises IDs 0--4 and raises ``No digitiser registered for
+detector ID'' for any other. Scoring-plane hits (100) are therefore for
+analysis only: the files you digitise in \cref{ch:digitisation} come from a
+stage without planes.
 \end{pitfall}
 
 \section{What the files look like}
 \label{sec:filelayout}
 
-Three kinds of file appear in this tutorial. All of them hold their data in
+Two kinds of file appear in this tutorial. All of them hold their data in
 RNTuples inside an ordinary ROOT file.
 
-\paragraph{Generator input} (\file{hnl\_events.root}, from the converter).
-One RNTuple, \texttt{events}, one entry per event:
+\paragraph{Simulation output} (\file{ft\_production.root} and
+\file{muon\_gun.root}, from \pkg{aegir}). One RNTuple, \texttt{events}, one
+entry per written event (types in namespace \texttt{SHiP}, vectors are
+\texttt{std::vector}):
 \begin{center}\small
-\begin{tabular}{ll}
+\begin{tabularx}{\linewidth}{l l L}
 \toprule
-field & type \\
+field & type & content \\
 \midrule
-\texttt{mc\_particles} & \texttt{std::vector<SHiP::MCParticle>} \\
-\texttt{event\_header} & \texttt{SHiP::EventHeader} \\
+\texttt{event\_number}    & \texttt{uint64\_t}                   & the event's number in this job \\
+\texttt{event\_header}    & \texttt{EventHeader}                & weight, origin \\
+\texttt{mc\_particles}    & \texttt{vector<MCParticle>}    & what the source gave Geant4 \\
+\texttt{sim\_hits}        & \texttt{vector<SimHit>}        & detector and plane hits \\
+\texttt{sim\_particles}   & \texttt{vector<SimParticle>}   & tracked particles \\
+\texttt{plane\_particles} & \texttt{vector<MCParticle>}    & for a replay; empty without a recording plane \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 \end{center}
 
-\paragraph{Simulation output} (\file{hnl\_sim.root}, from \pkg{aegir}).
-One RNTuple, \texttt{events}, one entry per event:
-\begin{center}\small
-\begin{tabular}{ll}
-\toprule
-field & type \\
-\midrule
-\texttt{event\_number}  & \texttt{std::uint64\_t} \\
-\texttt{event\_header}  & \texttt{SHiP::EventHeader} \\
-\texttt{mc\_particles}  & \texttt{std::vector<SHiP::MCParticle>} \\
-\texttt{sim\_hits}      & \texttt{std::vector<SHiP::SimHit>} \\
-\texttt{sim\_particles} & \texttt{std::vector<SHiP::SimParticle>} \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-\paragraph{Digitisation output} (\file{hnl\_digi.root}, from \pkg{Shannon}).
+\paragraph{Digitisation output} (\file{ft\_digi.root}, from \pkg{Shannon}).
 Seven RNTuples, one per collection, each with a single field \texttt{hit} and
 \emph{one entry per object} (a hit, or a particle for \texttt{sim\_particles}):
 \texttt{ubt\_hits}, \texttt{sbt\_hits}, \texttt{straw\_tubes\_hits},
@@ -168,46 +166,23 @@ Seven RNTuples, one per collection, each with a single field \texttt{hit} and
 the input as \texttt{sim\_hits} and \texttt{sim\_particles}.
 \Cref{ch:digitisation} discusses what this layout means for an analysis.
 
-\begin{exercise}{Look inside the HNL input file}
-\label{ex:openfile}
-In \file{work/}, start Python in the \pkg{aegir} environment and open the
-file you were given:
-\begin{py}
-import ROOT
-reader = ROOT.RNTupleReader.Open("events", "hnl_events.root")
-reader.PrintInfo()     # fields, types, number of entries, compression
-reader.Show(0)         # the first entry, as JSON
-\end{py}
-How many events does the file hold? How many particles are in the first
-event, what are their PDG codes and statuses, and which ones will Geant4
-track?
-\end{exercise}
-
-\begin{solution}
-\texttt{Show(0)} lists one HNL (a converter-defined HNL PDG code and status~2)
-and two daughters (PDG $(211,13)$ or $(-211,-13)$, status~1, \field{motherId}~$=0$).
-Geant4 tracks only the two daughters. Opposite electric charges have the
-same PDG-code sign here: $\pi^+$ is 211, while $\mu^-$ is 13. EventCalc's
-text LLP column is a placeholder (12345678), so the converter must assign
-and document the physical HNL code.
-\end{solution}
-
 \begin{note}
 ROOT reads these files through the data-model dictionaries, which the pixi
 environment makes available automatically; that is what lets you write
-\texttt{p.pdgCode} on a particle in Python. Outside the environment,
+\texttt{p.pdg\_code} on a particle in Python. Outside the environment,
 \href{https://github.com/scikit-hep/uproot5}{uproot} can read the same
-members column by column without any SHiP library.
+members column by column without any SHiP library. You will open your first
+file in \cref{ex:openfile}, as soon as you have made one.
 \end{note}
 
 \section{Keeping old files readable}
 
 Backward readability is a project goal checked with frozen reference files
-and a committed schema snapshot, but it has known exceptions. In 0.6,
-reads of pre-0.5 fixtures are marked as expected failures for a ROOT issue.
-The detector-wrapper rename \field{recHit} to \field{rec\_hit} has no working
-conversion rule: reading an old wrapper intentionally raises a fatal error.
-A successful read of a simulation fixture therefore does not demonstrate that
-old Shannon output is readable. Keep the complete tutorial chain on 0.5
-until an explicit migration and readback test succeeds. See
-\file{data-model/tests/data/README.md} at the revision in \cref{app:review}.
+and a committed schema snapshot, but it has known exceptions. Simulation
+files written with data model 0.5 can still be read by \pkg{aegir} and
+\pkg{Shannon} built against 0.6, which open them with the right conversion
+rules. Opening such a file from PyROOT by path alone can abort with a ROOT
+error, and the detector-wrapper rename \field{recHit} to \field{rec\_hit} has
+no conversion rule: an old digitised file cannot be read with 0.6. Everything
+in this tutorial is produced from scratch with 0.6, so none of this applies
+here; see \file{data-model/tests/data/README.md} if you need old files.

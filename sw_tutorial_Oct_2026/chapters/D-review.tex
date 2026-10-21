@@ -1,11 +1,14 @@
 \chapter{Review scope and source revisions}
 \label{app:review}
 
-This review checks the supplied booklet against public repository source
-snapshots retrieved on 15 October 2026. The revisions below identify the
-reviewed code; they are \emph{not} a jointly tested software release.
-The tutorial remains on the data-model 0.5 API. Development-head 0.6 changes
-are discussed explicitly rather than silently mixed into that workflow.
+This review checks the booklet against public repository source snapshots
+retrieved on 21 October 2026, all on \texttt{main}; the pull requests the
+earlier review assumed (\repo{Geometry} \#101, \#102, \#116,
+\repo{sea-cucumber} \#42) are merged. The whole of Part~II was run end to
+end on lxplus at these revisions (\file{tools/dry\_run.sh}), with the
+field maps of \repo{field\_maps}. The revisions are \emph{not} a jointly
+released software stack. The whole chain is on data
+model 0.6.
 
 \section{Checked primary sources}
 
@@ -13,42 +16,40 @@ The revision links open the exact source trees used for the review.
 \begin{center}\small
 \begin{tabularx}{\linewidth}{l l L}
 \toprule Repository & Revision & Main checks \\ \midrule
-EventCalc & \href{https://github.com/ShipSoft/EventCalc/tree/7c9be2ad88ee26873d3667a3c283f3f9c0decb9d}{\texttt{7c9be2ad88}} & Launch-card schema, event weights and coordinate convention \\
-Geometry & \href{https://github.com/ShipSoft/Geometry/tree/32dde5e21331edcf04b55be0afd833527de10131}{\texttt{32dde5e213}} & Coordinates, volume names, subsystem envelopes and tasks \\
-Shannon & \href{https://github.com/ShipSoft/Shannon/tree/908bccf8ba212d3d0fd1d0de30bbd62f5373dc04}{\texttt{908bccf8ba}} & Input layout, smearing, spill seeds and per-object output \\
-Trout & \href{https://github.com/ShipSoft/Trout/tree/5c0d1e4c33fe9de6c89aa9c8abd42a94121fdd76}{\texttt{5c0d1e4c33}} & Hit-stream input and reconstruction scope \\
-aegir & \href{https://github.com/ShipSoft/aegir/tree/43d0a32a60d37916876ec3ce8d6055a462e4108b}{\texttt{43d0a32a60}} & Input, sensitive-volume matching, scoring, field and output plugins \\
-data-model & \href{https://github.com/ShipSoft/data-model/tree/09fb209fbb4fefd6f7dedaee98a3ce3631e3ceca}{\texttt{09fb209fbb}} & 0.6 API changes and backward-read exceptions \\
-field\_service & \href{https://github.com/ShipSoft/field_service/tree/474d8028508fe105199db61b89ba2f8ccd24cd3e}{\texttt{474d802850}} & Dependency constraints, map I/O, interpolation and tools \\
-geometry\_service & \href{https://github.com/ShipSoft/geometry_service/tree/5afd27373e6da298b25d1b9a1946aaba375bf51e}{\texttt{5afd27373e}} & Geometry interface, lazy conversion and shared service \\
-sea-cucumber & \href{https://github.com/ShipSoft/sea-cucumber/tree/bb2b0bbf64d8a7b97ea813e2a8faf6e7de5664b4}{\texttt{bb2b0bbf64}} & CLI, view rules, entry indexing and geometry backend \\
-.github & \href{https://github.com/ShipSoft/.github/tree/a788c399d8fc5521e40ef1f8e3fd0df3f8a306db}{\texttt{a788c399d8}} & Branch rulesets, merge methods and required checks (\cref{sec:pullrequests}) \\
+Geometry & \href{https://github.com/ShipSoft/Geometry/tree/45fbeb6f9dcbdfa0b6116112200cc089f7b784c8}{\texttt{45fbeb6f9d}} & release 0.3.0: coordinates, volume names, envelopes, known overlaps, tasks, \cmd{build\_geometry} options, class names \\
+aegir & \href{https://github.com/ShipSoft/aegir/tree/a65eed53d03ce14b68df49d3f922c04c283367d3}{\texttt{a65eed53d0}} & fixed-target source, scoring planes, plane replay, sensitive-volume entries, output fields \\
+data-model & \href{https://github.com/ShipSoft/data-model/tree/ba0dda8bb4b43b9d2a2ded3ede57bdb519ae8d12}{\texttt{ba0dda8bb4}} & 0.6 member names, detector ids, backward-read exceptions \\
+field\_service & \href{https://github.com/ShipSoft/field_service/tree/6587979624a98713e5c7045b69b4be39f6dc1797}{\texttt{6587979624}} & map format, tools and their options \\
+field\_maps & \href{https://github.com/ShipSoft/field_maps/tree/f6234a00d2d5b2b257df410cd7c1459ad3bc236e}{\texttt{f6234a00d2}} & map files, map names, placements \\
+geometry\_service & \href{https://github.com/ShipSoft/geometry_service/tree/8e6792570fad3dce7349aeb992e734f860b1356f}{\texttt{8e6792570f}} & 0.6 interface, namespace, CMake target \\
+Shannon & \href{https://github.com/ShipSoft/Shannon/tree/7d9f89a47a09c6865124e532c49ef9206661da57}{\texttt{7d9f89a47a}} & input layout, \texttt{pot}, smearing and per-object output \\
+sea-cucumber & \href{https://github.com/ShipSoft/sea-cucumber/tree/15ce818e39d8d21d508bd9dc327a706b738f7125}{\texttt{15ce818e39}} & main (with PR \#42): tasks, options, view rules, data model 0.6 \\
+Trout & \href{https://github.com/ShipSoft/Trout/tree/d397c33d38108e7beaf4e32d9c46b7151200e886}{\texttt{d397c33d38}} & hit-stream input and reconstruction scope \\
+.github & \href{https://github.com/ShipSoft/.github/tree/141170c66caa785af6b5cf30551359dc47e994c1}{\texttt{141170c66c}} & branch rulesets, merge methods and required checks (\cref{sec:pullrequests}) \\
 \bottomrule\end{tabularx}\end{center}
 
-Particularly relevant files are \file{data-model/tests/data/README.md}
-(schema migration exceptions), the packages' \file{pixi.toml} manifests,
-\file{aegir/src/detector\_construction.hpp} (substring-to-detector mapping),
-\file{aegir/src/geant4\_sim\_core.hpp} (positive-deposit scoring),
-\file{Shannon/src/digitise\_hits.cpp} (random streams), and the EventCalc
-README's event-format description. Full commit IDs are included in
-\file{reviewed\_sources.json}; the accompanying \file{REVIEW.md} records
-changes and validation limits.
+Particularly relevant files are \file{aegir/workflows/lib.libsonnet} and
+\file{fixed\_target\_production.jsonnet} and \file{plane\_replay.jsonnet}
+(which the booklet's two simulation workflows reproduce),
+\file{aegir/src/sensitive\_volumes.hpp} (the detector of each pattern),
+\file{aegir/docs/geant4\_integration.md} (scoring planes and SD modes),
+\file{Shannon/src/digitise\_hits.cpp} (time window and random streams) and
+\file{data-model/tests/data/README.md} (schema migration exceptions). Full
+commit IDs are in \file{reviewed\_sources.json}; the accompanying
+\file{REVIEW.md} records changes and validation limits.
 
 \section{Before the tutorial session}
 
 \begin{enumerate}
-\item Freeze compatible package revisions and lock files. Resolve the
-field-service 0.6 versus aegir 0.5 dependency conflict; pin the display to a
-compatible data model. Verify all packages on the intended machines.
-\item Provide the HNL input and converter with their mass, lifetime, channel,
-exposure, frame transform, mother links and weight convention. Preserve
-\field{original\_event\_id} and the expected-yield metadata.
-\item Provide field maps, their names and coordinate placements. Check the
-maps against the exact geometry database used by all consumers.
-\item Review the five detector selectors. Broad subsystem matching includes
-passive material and cannot support physical veto efficiencies or calorimeter
-response without an active-volume mapping or filter.
-\item Run the full chain on the frozen sample, verify schema readback in each
+\item Freeze compatible package revisions and lock files. Verify all packages
+on lxplus with \cmd{pixi cvmfs}: \file{tools/dry\_run.sh} in the organiser
+archive runs Part~II end to end and collects timings, disk use and the
+numbers the \textbf{TBD} items need.
+\item Provide the field maps, their names and coordinate placements. Check
+the maps against the exact geometry database used by all consumers.
+\item Time stage~1 and choose the number of protons per participant; produce
+a larger sample with the same workflow for the analysis.
+\item Run the full chain on lxplus, verify schema readback in each
 environment, and replace the remaining \textbf{TBD} values with measured
 results (including runtime and disk requirements).
 \end{enumerate}
@@ -64,11 +65,17 @@ single-series line; Gaussian fits additionally use a black dashed line.
 This supports greyscale use and avoids dependence on red--green perception;
 it is not a claim of formal PDF accessibility certification.
 
-Both editions are compiled and visually checked. Python files are checked
-for syntax, and numerical/selection helpers are exercised with synthetic
-inputs. The EventCalc card and workflow structures are checked separately.
-No full Geant4 or digitisation run is claimed: the supplied archive has no
-ROOT event sample, maps or frozen integration environment.
+Both editions are compiled and visually checked. The analysis scripts are
+run in \file{tests/test\_analysis\_helpers.py} against synthetic events with
+the data-model 0.6 member names and a stand-in for ROOT. The four workflows
+are evaluated with \cmd{jsonnet} in \file{tests/test\_workflows.py}: the
+production workflow expands to the same job as \pkg{aegir}'s
+\file{fixed\_target\_production.jsonnet}, the replay to \pkg{aegir}'s
+\file{plane\_replay.jsonnet} plus the detectors, the field and
+energy-deposit hits, the muon gun has the same detectors and field as the
+replay, and every volume pattern is checked against the
+\repo{Geometry} sources. No Geant4, digitisation or display run is claimed:
+the review environment has no SHiP packages, field maps or CVMFS.
 
 For Part~I, the script \file{tests/test\_git\_workflow.sh} runs every git
 command sequence of \cref{ch:git,ch:branches,ch:remotes,ch:team} against local bare repositories standing
@@ -77,9 +84,12 @@ conflict, a rebase-only merge queue). The team exercise (skeleton, per-task
 checker, sample generator and reference solutions) runs end to end in
 \file{tests/test\_teamwork.py} against a numerical stand-in for PyROOT
 (\file{tests/fakeroot/}); it has not yet been run with real ROOT. The pixi manifests and the task,
-feature and environment commands of \cref{ch:pixi} were checked with pixi~0.82
-on workspaces without packages (the package channels were not reachable from
+feature and environment commands of \cref{ch:pixi} were checked with
+pixi~0.72.0 (the version on CVMFS) and 0.82 on workspaces without packages (the package channels were not reachable from
 the review environment, so no environment was solved and no lock file for the
-team repository exists yet); both workflows of \cref{ch:ci} pass actionlint
+team repository exists yet). \cmd{pixi cvmfs} exists only on CVMFS and has
+not been run: the booklet assumes that \cmd{pixi cvmfs <task or command>}
+works as \cmd{pixi run} does in any workspace, and that bare \cmd{pixi cvmfs}
+opens a shell, as in FairShip. Both workflows of \cref{ch:ci} pass actionlint
 1.7.12, and all tutorial Python passes the ruff configuration CI uses. None of
 the workflows has run on GitHub.

@@ -45,7 +45,6 @@
 \RequirePackage{booktabs}
 \RequirePackage{tabularx}
 \RequirePackage{longtable}
-\RequirePackage{needspace}
 \RequirePackage{array}
 \RequirePackage{enumitem}
 \RequirePackage{amsmath}
@@ -100,10 +99,20 @@
 % Inline markup
 % ---------------------------------------------------------------------------
 \newcommand{\pkg}[1]{\textsf{\bfseries #1}}           % a SHiP package
-\newcommand{\file}[1]{\texttt{#1}}                    % a file or path
+% a file or path; may break after "/" and "_"
+\ExplSyntaxOn
+\tl_new:N \l__ship_file_tl
+\NewDocumentCommand \file { m }
+  {
+    \tl_set:Nn \l__ship_file_tl { #1 }
+    \tl_replace_all:Nnn \l__ship_file_tl { / } { /\allowbreak }
+    \tl_replace_all:Nnn \l__ship_file_tl { \_ } { \_\allowbreak }
+    \texttt { \tl_use:N \l__ship_file_tl }
+  }
+\ExplSyntaxOff
 \newcommand{\cmd}[1]{\texttt{#1}}                     % a command or key
 \newcommand{\field}[1]{\texttt{#1}}                   % a data-model field
-\newcommand{\repo}[1]{\href{https://github.com/ShipSoft/#1}{\texttt{ShipSoft/#1}}}
+\newcommand{\repo}[1]{\href{https://github.com/ShipSoft/#1}{\file{ShipSoft/#1}}}
 \newcommand{\doxy}[1]{\href{https://shipsoft.github.io/#1/}{class reference}}
 \newcommand{\GeV}{\,\mathrm{GeV}}
 \newcommand{\HNL}{\ensuremath{N}}
@@ -210,6 +219,10 @@
   morestring=[b]',
   morestring=[b]",
 }
+\lstdefinelanguage{g4mac}{
+  sensitive=true,
+  morecomment=[l]{\#},
+}
 \lstdefinelanguage{toml}{
   morekeywords={true,false},
   sensitive=true,
@@ -242,7 +255,7 @@
   belowskip=8pt,
 }
 \lstdefinestyle{shell}{language=bash, morekeywords={pixi,phlex,jsonnet,cmake,git,
-  python,python3,gmex,sc,ctest}}
+  python,python3,sc,ctest,ship_g4view}}
 \lstdefinestyle{output}{language={}, backgroundcolor=\color{white},
   basicstyle=\ttfamily\footnotesize, frame=leftline, rulecolor=\color{okgreen}}
 

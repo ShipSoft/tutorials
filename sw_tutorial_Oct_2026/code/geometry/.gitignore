@@ -1,0 +1,5 @@
+build/
+.pixi/*
+!.pixi/config.toml
+*.db
+*.png

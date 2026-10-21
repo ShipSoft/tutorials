@@ -7,26 +7,38 @@
 
 \section{The guiding example}
 
-A heavy neutral lepton mixes with the active neutrinos. At SHiP it is produced
-mostly in decays of charm and beauty mesons in the target, flies through the
-muon shield without interacting, and decays somewhere in the 50\,m long decay
-volume. We follow its decay
-\[
-  \HNL \to \pi^{\pm}\mu^{\mp},
-\]
-a useful benchmark signature: two charged tracks from a common vertex
-inside the decay volume, no activity in the veto taggers, and a reconstructed invariant
-mass distributed around the HNL mass.
+SHiP is a beam-dump experiment: 400\,GeV protons from the SPS stop in a
+dense tungsten target, $4\times10^{13}$ of them per spill. Most of what the
+collisions produce is absorbed in the target and the hadron absorber behind
+it. What is not absorbed is mostly muons, from the decays of pions, kaons and
+charm, and neutrinos. The muons are the largest background of the
+experiment: the muon shield, a chain of magnets 30\,m long, sweeps them away
+from the decay volume, and the background taggers around it (UBT and SBT)
+flag those that still come close.
 
-You will take a sample of such decays and push it through the whole chain in
-\cref{fig:chain}: transport the two daughters through the detector, look at
-the result in the event display, turn energy deposits into detector hits, and
-finally form an illustrative weighted acceptance estimate.
+Part~II follows these muons through the chain in \cref{fig:chain}, producing
+every file yourself. SHiP's muon background studies simulate in two stages, as
+with FairShip: a \emph{production} of proton--tungsten collisions, tracked
+through the target and the hadron absorber to a scoring plane just behind it,
+and a \emph{replay} of what the plane recorded through the muon shield and
+the detector. A production that sends enough muons through the shield takes
+far more protons than fit into a tutorial, so you do the two steps as follows:
+\begin{enumerate}
+  \item \textbf{production}: 1000 protons on target, and what reaches the
+        scoring plane behind the absorber (\cref{ch:production});
+  \item \textbf{muons through the detector}: an artificial sample of 100
+        muons, fired at a small angle from the back of the muon shield at
+        $z=27$\,m, through the decay volume and the detectors, with the field
+        and the detectors switched on (\cref{ch:aegir}). Replaying your own
+        production that way is an optional exercise.
+\end{enumerate}
+Then you look at the muons in the event display, turn their energy deposits
+into detector hits, and find out which detectors they reach.
 
 \begin{figure}[h]
 \centering
 \begin{tikzpicture}[
-  node distance=7mm and 6mm,
+  node distance=6mm and 6mm,
   every node/.style={font=\sffamily\small},
   stage/.style={draw=shipnavy, fill=shipcream!60, rounded corners=2pt,
     minimum width=27mm, minimum height=9mm, align=center, line width=0.7pt},
@@ -39,38 +51,40 @@ finally form an illustrative weighted acceptance estimate.
   flow/.style={-{Stealth[length=2.2mm]}, line width=0.8pt, color=shipnavy},
   uses/.style={-{Stealth[length=2mm]}, color=shipblue, dashed},
 ]
-  \node[stage] (evc) {EventCalc\\\scriptsize HNL decays};
-  \node[datafile, below=of evc] (hnl) {hnl\_events.root};
-  \node[stage, below=of hnl] (aegir) {\textbf{aegir}\\\scriptsize Geant4 transport};
-  \node[datafile, below=of aegir] (sim) {hnl\_sim.root};
+  \node[stage] (prod) {\textbf{aegir}, stage 1\\\scriptsize Pythia\,8 + Geant4: target, absorber};
+  \node[datafile, below=of prod] (pf) {ft\_production.root};
+  \node[stage, below=of pf] (rep) {\textbf{aegir}, muon gun\\\scriptsize Geant4: decay volume, detectors};
+  \node[datafile, below=of rep] (sim) {muon\_gun.root};
   \node[stage, below=of sim] (shannon) {\textbf{Shannon}\\\scriptsize digitisation};
-  \node[datafile, below=of shannon] (digi) {hnl\_digi.root};
+  \node[datafile, below=of shannon] (digi) {ft\_digi.root};
   \node[future, below=of digi] (trout) {Trout\\\scriptsize reconstruction};
 
-  \node[service, left=12mm of aegir] (geosvc) {geometry service};
+  \node[service, left=12mm of rep] (geosvc) {geometry service};
   \node[service, above=of geosvc] (geo) {Geometry\\\scriptsize\ttfamily ship\_geometry.db};
   \node[service, below=of geosvc] (field) {field service\\\scriptsize field maps};
 
   \node[stage, right=12mm of sim] (sc) {\textbf{sea-cucumber}\\\scriptsize event display\\[-1pt]\scriptsize(+ \texttt{ship\_geometry.db})};
   \node[stage, right=12mm of digi, fill=shipcream!25] (ana) {your analysis\\\scriptsize Python + ROOT};
 
-  \draw[flow] (evc) -- node[right, font=\scriptsize\sffamily] {your converter} (hnl);
-  \draw[flow] (hnl) -- (aegir);
-  \draw[flow] (aegir) -- (sim);
+  \draw[flow] (prod) -- (pf);
+  \draw[flow, black!65, densely dotted] (pf) -- node[right, font=\scriptsize\sffamily] {replay (optional)} (rep);
+  \draw[flow] (rep) -- (sim);
   \draw[flow] (sim) -- (shannon);
   \draw[flow] (shannon) -- (digi);
   \draw[flow, black!65, densely dotted] (digi) -- (trout);
 
   \draw[uses] (geo) -- (geosvc);
-  \draw[uses] (geosvc) -- (aegir);
-  \draw[uses] (field) -- (aegir);
+  \draw[uses] (geosvc) -- (rep);
+  \draw[uses] (geosvc.north west) -- ++(-4mm,0) |- (prod.west);
+  \draw[uses] (field) -- (rep);
   \draw[flow] (sim) -- (sc);
   \draw[flow] ([yshift=-2mm]sim.east) -- ++(5mm,0) |- ([yshift=2mm]ana.west);
   \draw[flow] (digi) -- (ana);
+  \draw[flow] (pf.east) -- ++(42mm,0) |- ([yshift=-2mm]ana.east);
 
   \begin{scope}[on background layer]
     \node[draw=shipblue!40, fill=shipblue!3, rounded corners=4pt, inner sep=4mm,
-      fit=(geo)(geosvc)(field), label={[font=\sffamily\scriptsize\color{shipblue}]above:detector description}] {};
+      fit=(geo)(geosvc)(field), label={[font=\sffamily\scriptsize\color{shipblue}]below:detector description}] {};
   \end{scope}
 \end{tikzpicture}
 \caption{The chain followed in this booklet. Solid arrows carry event data
@@ -141,12 +155,13 @@ labelled with it.
 \paragraph{Workflows are jsonnet.}
 \href{https://jsonnet.org}{Jsonnet} is JSON with variables, functions and
 imports. The \pkg{aegir} workflows import building blocks from
-\file{workflows/lib.libsonnet} and override what they need. Values that change
-from run to run (number of events, file names) are passed as external
-variables, so a run is typically:
+\file{workflows/lib.libsonnet} and override what they need. A workflow is a
+function, and the values that change from run to run (number of events,
+seeds, file names) are its arguments: \cmd{--tla-code} passes a number or a
+boolean, \cmd{--tla-str} a string. A run is typically:
 
 \begin{shell}
-phlex -c <(jsonnet --ext-str events=100 --ext-str infile=hnl_events.root \
+phlex -c <(jsonnet --tla-code events=100 --tla-code seed=42 \
                    my_workflow.jsonnet) -j 4
 \end{shell}
 
@@ -166,8 +181,8 @@ The simulation and digitisation plugins use \pkg{ship-random}'s
 event from \emph{(seed, stream key, event number)}, with no state shared
 between events. The same seed therefore gives the same events whatever the
 number of threads and in whatever order events finish. The aegir generator and transport plugins choose and log a random seed
-when none is supplied; Shannon defaults to seed zero. This booklet sets
-explicit seeds. Reproducibility also requires fixed inputs, software and
+when none is supplied; Shannon defaults to seed zero. The workflows of this
+booklet set explicit seeds, 42 unless you choose another. Reproducibility also requires fixed inputs, software and
 configuration. Shannon seeds by input entry/spill index, so reordering a
 simulation file changes which random stream a physical event receives.
 

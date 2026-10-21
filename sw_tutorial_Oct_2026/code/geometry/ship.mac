@@ -1,0 +1,26 @@
+# ship.mac -- the full SHiP geometry, one subsystem at a time.
+#   cp "$SHIP_TUTORIAL/work/ship_geometry.db" . && pixi cvmfs view ship.mac
+
+/ship/geometry/open ship_geometry.db
+/run/initialize
+
+/vis/open
+/vis/viewer/set/autoRefresh false
+/vis/verbose errors
+
+# The whole detector has hundreds of thousands of volumes: start with one
+# subsystem, and add others with /vis/scene/add/volume <name>. The names:
+#   /SHiP/target  /SHiP/muon_shield  /SHiP/neutrino_detector
+#   /SHiP/upstream_tagger  /SHiP/decay_volume  /SHiP/trackers
+#   /SHiP/magnet  /SHiP/timing_detector  /SHiP/calorimeter
+/vis/drawVolume /SHiP/calorimeter
+
+/vis/viewer/set/style wireframe
+/vis/viewer/set/upVector 0 1 0
+/vis/viewer/set/viewpointThetaPhi 120 150 deg
+/vis/scene/add/axes
+/vis/scene/add/trajectories smooth
+/vis/scene/endOfEventAction accumulate
+
+/vis/viewer/set/autoRefresh true
+/vis/verbose warnings

@@ -36,34 +36,38 @@ real detector data. Its main pieces:
 \end{description}
 
 Vertexing is not there yet: the impact parameter in \texttt{RecParticle} is
-computed with respect to the origin as a placeholder.
+computed with respect to the origin as a placeholder. Like the rest of the
+chain, \pkg{Trout} is on data model 0.6, so it reads the digitised files of
+this tutorial.
 
 \section{Questions for the discussion}
 
 \begin{enumerate}
   \item \textbf{From hits to events.} \pkg{Shannon} writes hit streams and
         \pkg{Trout} will form events by time. How should Monte Carlo truth
-        (which simulated event, which particle, which weight) travel along so
-        that efficiencies can be measured after reconstruction?
-  \item \textbf{The sensitive-volume contract.} \pkg{aegir} numbers detectors
-        by position in a list, \pkg{Shannon} by an enum. Should the geometry
-        itself tag sensitive volumes and their detector, so that the list in
-        \file{hnl\_sim.jsonnet} disappears?
+        (which simulated event, which particle, which proton) travel along so
+        that efficiencies and background rates can be measured after
+        reconstruction?
+  \item \textbf{The sensitive-volume contract.} \pkg{aegir} now lets a
+        workflow name each pattern's detector, but the patterns are still
+        substrings of volume names, and the SBT cells cannot be told from
+        their walls. Should the geometry itself tag sensitive volumes and
+        their detector, so that the list in \file{muon\_gun.jsonnet}
+        disappears?
   \item \textbf{Digitisation models.} Every detector uses the same placeholder
-        smearing. Which detector needs a realistic model first for the HNL
-        analysis to be meaningful, and what does it need from the geometry
-        service?
-  \item \textbf{Vertexing and the HNL selection.} The exercise in
-        \cref{ch:analysis} found a vertex from straight lines. What does a
-        real vertex fit need, and where should it live?
-  \item \textbf{Versions.} One data-model change touches every package. How
-        should the packages move together, and how should analysis scripts
-        cope with member renames?
+        smearing. Which detector needs a realistic model first for the muon
+        background to be meaningful, the SBT perhaps, and what does it need
+        from the geometry service?
+  \item \textbf{Vetoing the background.} The analysis in \cref{ch:analysis}
+        counted hits. What does a veto decision need from reconstruction: a
+        time window, an SBT cluster, a track pointing back to the target?
+  \item \textbf{Staged simulation at scale.} Stage~1 is reused for many
+        replays. Where should large productions of plane particles live, and
+        how should their provenance (geometry, seeds, cuts) travel with them?
 \end{enumerate}
 
 \begin{organisernote}
 Points 1 and 2 come straight out of problems participants will have hit
-(\cref{sec:digilayout,sec:sensitive}). Point 5 is the snake\_case rename of
-data model 0.6 (\cref{app:datamodel}). Collect the outcome as issues on the
+(\cref{sec:digilayout,sec:sensitive}). Collect the outcome as issues on the
 relevant repositories.
 \end{organisernote}

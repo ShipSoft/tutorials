@@ -19,9 +19,9 @@ carefully configured laptop. A repository can make checks \emph{required}: a
 pull request with a red required check cannot be merged.
 
 CI only works if it runs exactly what you run. That is what the pixi tasks and
-the lock file of \cref{ch:pixi} are for: CI runs
-\cmd{pixi run -{}-locked <task>}, the same command, in the same environment,
-that you run at home.
+the lock file of \cref{ch:pixi} are for: CI installs pixi on the fresh
+machine and runs \cmd{pixi run -{}-locked <task>}, the task you run on lxplus
+with \cmd{pixi cvmfs <task>}, in the environment of the same \file{pixi.lock}.
 
 \section{GitHub Actions in five words}
 
@@ -43,11 +43,16 @@ GitHub's CI is called GitHub Actions. Its vocabulary:
 
 \section{Your first workflow}
 
-\codefile[basicstyle=\ttfamily\footnotesize]{yaml}{code/ci/playground-ci.yml}
+A workflow that runs the \texttt{lint} task of your \file{pixi-playground}
+(\cref{ex:pixitasks}) on every push and pull request:
 
-Three steps: \texttt{actions/checkout} fetches the commit being tested;
-\texttt{prefix-dev/setup-pixi} installs pixi and the environment, from
-\file{pixi.lock} (\texttt{locked: true}); and the last step runs your task.
+\codefile[firstline=3,basicstyle=\ttfamily\footnotesize]{yaml}{code/ci/playground-ci.yml}
+
+One job, \texttt{lint}, of three steps: \texttt{actions/checkout} fetches the
+commit being tested; \texttt{prefix-dev/setup-pixi} installs pixi and the
+environment, from \file{pixi.lock} (\texttt{locked: true}); and the last step
+runs your task. GitHub's machine has no CVMFS, so there the task runs with
+\cmd{pixi run}.
 
 \begin{exercise}{CI for your playground}
 \label{ex:firstci}
@@ -55,35 +60,34 @@ On GitHub, create a new, empty repository \texttt{pixi-playground} (no
 README, no licence). Then, in your \file{pixi-playground}:
 \begin{shell}
 mkdir -p .github/workflows
-cp $CODE/ci/playground-ci.yml .github/workflows/ci.yml
-git add .github && git commit -m "ci: run hello on every push"
+vim .github/workflows/ci.yml     # type the workflow above
+git add .github && git commit -m "ci: lint on every push"
 git remote add origin git@github.com:<you>/pixi-playground.git
 git push -u origin main
 \end{shell}
 Open the repository's \emph{Actions} tab and follow the run. Click on the job
-and open each step: where does it print the ROOT version?
+and open each step: where does ruff report its result?
 \end{exercise}
 
 \begin{pitfall}
-CI runs on Linux. \cmd{pixi init} on a Mac writes only your Mac's platform
-into \file{pixi.toml}, and \cmd{pixi run -{}-locked} then fails in CI because
-the lock file has nothing for \texttt{linux-64}. Add it with
-\cmd{pixi workspace platform add linux-64} and commit the new lock file.
+\cmd{-{}-locked} makes CI fail if \file{pixi.lock} does not match
+\file{pixi.toml}. If you change the manifest by hand, run \cmd{pixi lock} and
+commit both files together.
 \end{pitfall}
 
 \begin{exercise}{Red, then green}
 \label{ex:redgreen}
-Break the task on a branch and propose the breakage to yourself:
+Break the lint on a branch and propose the breakage to yourself:
 \begin{shell}
 git switch -c broken
-echo 'raise SystemExit("deliberately broken")' >> hello.py
-git commit -am "test: break hello on purpose"
+vim hello.py     # add a first line: import os
+git commit -am "test: an unused import"
 git push -u origin broken
 \end{shell}
 Open a pull request from \texttt{broken} into \texttt{main} of your own
-repository. Watch the check turn red, open its log, and find the error.
-Reproduce it locally with the very same command, \cmd{pixi run -{}-locked
-hello}. Then repair \file{hello.py}, commit, \cmd{git push}, and watch the
+repository. Watch the check turn red, open its log, and find the error
+(\texttt{F401 `os` imported but unused}). Reproduce it on lxplus with the
+same task, \cmd{pixi cvmfs lint}. Then repair \file{hello.py}, commit, \cmd{git push}, and watch the
 same pull request turn green. Close it without merging.
 \end{exercise}
 
@@ -103,7 +107,8 @@ ShipSoft ones. Read it once now; you will see it run on your pull request.
     previous push, which nobody needs any more.
   \item[Two jobs] run in parallel: \texttt{tasks} runs
     \cmd{pixi run -{}-locked check} (all ten task checks of \cref{ch:team}), and
-    \texttt{lint} runs \texttt{ruff} in its own pixi environment.
+    \texttt{lint} runs \texttt{ruff} in its own pixi environment
+    (\cmd{pixi run -{}-locked lint}).
   \item[One summary job,] ``All checks passed'', needs both and fails if
     either failed or was cancelled. Its name is the one required check of the
     repository. Jobs can be added or renamed later without touching the
@@ -118,8 +123,8 @@ Without running anything, answer from the workflow above:
         \texttt{import}. Which jobs are green, which red, and can the pull
         request be merged?
   \item You push twice within a minute. How many runs complete?
-  \item Which single command reproduces the \texttt{tasks} job on your
-        machine, and which the \texttt{lint} job?
+  \item Which single command reproduces the \texttt{tasks} job on lxplus,
+        and which the \texttt{lint} job?
 \end{enumerate}
 \end{exercise}
 
@@ -127,8 +132,8 @@ Without running anything, answer from the workflow above:
 (1) \texttt{tasks} green, \texttt{lint} red (ruff rule F401), so ``All checks
 passed'' is red and the pull request cannot be merged until the import is
 removed. (2) One: the second push cancels the first run
-(\texttt{concurrency}). (3) \cmd{pixi run -{}-locked check} and
-\cmd{pixi run -{}-locked lint}.
+(\texttt{concurrency}). (3) \cmd{pixi cvmfs check} and \cmd{pixi cvmfs lint}:
+the same tasks, from the same lock file.
 \end{solution}
 
 \section{CI in the ShipSoft repositories}
@@ -166,10 +171,10 @@ Workflow & What it checks \\
 
 \begin{note}
 Run the lint checks before you push and the ``Lint passed'' check is a
-formality: \cmd{pixi run lint} checks everything, and \cmd{pixi run
-install-hooks} makes the same checks run at every \cmd{git commit}. When a
-check is red anyway, the log of the failed step names the pixi task; rerun
-exactly that task locally.
+formality: \cmd{pixi cvmfs lint} checks everything. When a check is red
+anyway, the log of the failed step names the pixi task (\cmd{pixi run
+-{}-locked <task>}); rerun exactly that task on lxplus with
+\cmd{pixi cvmfs <task>}.
 \end{note}
 
 \begin{exercise}[colback=white]{Optional: read a real run}
@@ -183,7 +188,7 @@ long did the build take, and how many tests ran?
   \can name the parts of a workflow: events, jobs, steps;
   \can set up CI for a pixi project and watch it run;
   \can go from a red check to its log, and reproduce the failure with the
-       same pixi task locally;
+       same pixi task on lxplus;
   \can explain why a summary job, rather than every job, is the required
        check, and what \texttt{merge\_group} is for.
 \end{itemize}

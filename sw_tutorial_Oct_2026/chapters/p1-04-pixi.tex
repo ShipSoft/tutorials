@@ -2,7 +2,7 @@
 \label{ch:pixi}
 
 \chaptergoals{4 of 6 in Part~I.}
-{\cref{ch:git}: you can commit. A network connection to download packages.}
+{\cref{ch:git}: you can commit. An lxplus account.}
 {create a project environment from a manifest and a lock file, run commands
 and tasks in it, add packages and a second environment, and recognise how the
 ShipSoft repositories use all of this.}
@@ -17,9 +17,9 @@ versions of any of these can get different results, or none.
 \href{https://pixi.sh}{pixi} solves this per project. It installs packages
 from conda channels (\texttt{conda-forge} for the general HEP stack,
 \href{https://prefix.dev/channels/ship}{\texttt{prefix.dev/ship}} for the SHiP
-packages) into a directory inside the project, \file{.pixi/}. Nothing is
-installed system-wide, nothing needs administrator rights, and every project
-has exactly the versions it asks for. Every ShipSoft repository is a pixi
+packages) for each project separately. Nothing is installed system-wide,
+nothing needs administrator rights, and every project has exactly the
+versions it asks for. Every ShipSoft repository is a pixi
 project, and so is the team repository of \cref{ch:team}.
 
 A pixi project is described by two files, and both are committed to git:
@@ -38,58 +38,94 @@ gives      & the recipe & the same environment for everybody, and for CI \\
 \end{tabularx}
 \end{center}
 
-\section{Installing pixi}
+\section{pixi on lxplus}
+\label{sec:pixicvmfs}
 
+This tutorial runs on lxplus. Plain pixi installs each environment into a
+directory \file{.pixi/} inside the project: about a gigabyte for an
+environment with ROOT, several for the SHiP simulation. Your lxplus home is
+on AFS, whose quota that would exceed. On lxplus SHiP therefore uses a pixi
+build published on CVMFS together with the \cmd{pixi cvmfs} extension, which
+keeps the environments out of your AFS area.
+
+\begin{exercise}{Set up pixi, once}
+\label{ex:pixicvmfs}
+Open your shell's start-up file in your editor:
 \begin{shell}
-curl -fsSL https://pixi.sh/install.sh | bash
-# open a new terminal, then:
-pixi --version
+vim ~/.bashrc
 \end{shell}
+and add this line at the end:
+\begin{shell}[basicstyle=\ttfamily\scriptsize]
+export PATH=/cvmfs/ship-nightlies.cern.ch/pixi/0.72.0-rattlerfs-layers-d5a7568/bin:$PATH
+\end{shell}
+Save, log out and in again (or open a new terminal), then check:
+\begin{shell}
+pixi --version                 # pixi 0.72.0
+fs lq ~                        # your AFS quota and usage
+\end{shell}
+Note the AFS usage: it should hardly change during the whole tutorial.
+\end{exercise}
+
+On lxplus you use the environment of a project with \cmd{pixi cvmfs}, run
+in the project's directory:
+
+\begin{description}[style=nextline]
+  \item[\cmd{pixi cvmfs <task or command>}] runs one task, or any command,
+    inside the environment and returns: \cmd{pixi cvmfs build},
+    \cmd{pixi cvmfs python hello.py}. Use it whenever you can.
+  \item[\cmd{pixi cvmfs}] alone opens a shell with the environment active
+    until you \cmd{exit}. Convenient for interactive work; leave it before
+    you enter the environment of another project, or you get a mixture of
+    both.
+\end{description}
+
+The commands that only read or change \file{pixi.toml} and \file{pixi.lock}
+are plain pixi: \cmd{pixi init}, \cmd{pixi add -{}-no-install},
+\cmd{pixi lock}, \cmd{pixi task}, \cmd{pixi workspace}, \cmd{pixi list}.
 
 \begin{pitfall}
-pixi keeps downloaded packages in a cache (\cmd{pixi info} shows where) and
-the environments in each project's \file{.pixi/}. Both can take several
-gigabytes. On machines with a small home quota, such as lxplus, point the
-cache at a larger disk with \cmd{export PIXI\_CACHE\_DIR=<somewhere big>} in
-your shell's start-up file. \tbd{recommended location on the tutorial machines}
+On lxplus, never use \cmd{pixi run}, \cmd{pixi shell}, \cmd{pixi install},
+or \cmd{pixi add} without \cmd{-{}-no-install}: they install the environment
+into \file{.pixi/}, on AFS. If it happened, \cmd{pixi clean} in the project
+removes it. Elsewhere, and in CI, \cmd{pixi run <task>} is the ordinary way
+to run a task; you will read it in the ShipSoft documentation and in CI logs.
 \end{pitfall}
+
+\begin{organisernote}
+The pixi version in the CVMFS path changes from time to time; the
+\href{https://github.com/ShipSoft/FairShip\#on-lxplus-afs}{FairShip README}
+has the current one. Freeze the path for the tutorial, run the whole booklet
+once on lxplus with it, and compare \cmd{fs lq} before and after. Check
+also where \cmd{pixi info} puts the package cache: if it is on AFS and grows,
+have participants set \cmd{PIXI\_CACHE\_DIR} to a directory outside AFS in
+\file{\textasciitilde/.bashrc}.
+\tbd{frozen pixi path for the tutorial}
+\end{organisernote}
 
 \section{Your first workspace}
 
-\begin{exercise}{An environment with PyROOT}
+\begin{exercise}{A first workspace}
 \label{ex:pixifirst}
 Next to your git playground:
 \begin{shell}
 mkdir pixi-playground && cd pixi-playground
 git init
-pixi init                                  # writes pixi.toml, .gitignore, .gitattributes
-pixi add python "root_base>=6.36"          # solves, writes pixi.lock, installs
-pixi run python -c "import ROOT; print(ROOT.gROOT.GetVersion())"
+pixi init                # writes pixi.toml, .gitignore, .gitattributes
+pixi add --no-install python ruff    # solves, writes pixi.lock
+pixi cvmfs python --version
 \end{shell}
-Open \file{pixi.toml}: what did \cmd{pixi add} write into it? Look at the size
-of \file{pixi.lock} and search it for \texttt{root\_base}: which exact version
-and build did you get? What does the new \file{.gitignore} keep out of git?
-Commit the project:
-\begin{shell}
-git add pixi.toml pixi.lock .gitignore .gitattributes
-git commit -m "feat: environment with PyROOT"
-\end{shell}
+Open \file{pixi.toml}: what did \cmd{pixi add} write into it? Search
+\file{pixi.lock} for \texttt{ruff}: which exact version and build did you get?
+What does the new \file{.gitignore} keep out of git?
 \end{exercise}
 
 \begin{checkpoint}
-A ROOT version of 6.36 or later printed, and one commit containing the four
-files, but not \file{.pixi/}.
+A Python version printed, and \file{pixi.toml}, \file{pixi.lock},
+\file{.gitignore} and \file{.gitattributes} in the directory.
 \end{checkpoint}
 
-There are two ways to use the environment:
-
-\begin{description}[style=nextline]
-  \item[\cmd{pixi run <command>}] runs one command inside the environment
-    and returns. Use it in scripts, in CI, and whenever you can.
-  \item[\cmd{pixi shell}] opens a shell with the environment active until you
-    \cmd{exit}. Convenient for interactive work; leave it before you enter
-    the shell of another project, or you get a mixture of both.
-\end{description}
+Try the other way to use the environment, too: \cmd{pixi cvmfs}, then
+\cmd{python} inside it, and \cmd{exit}.
 
 \section{Tasks}
 
@@ -97,57 +133,50 @@ Typing the same long commands is error-prone, and the next person will type
 them differently. A \emph{task} gives a command a name, stored in the
 manifest, so that everybody, including CI, runs exactly the same thing.
 
-\begin{exercise}{Name your commands}
+\begin{exercise}{Run it, lint it}
 \label{ex:pixitasks}
 \begin{shell}
-echo 'import ROOT; print("hello from ROOT", ROOT.gROOT.GetVersion())' > hello.py
+vim hello.py             # one line: print("hello")
 pixi task add hello "python hello.py"
-pixi run hello
+pixi task add lint "ruff check ."
+pixi cvmfs hello         # hello
+pixi cvmfs lint          # All checks passed!
 pixi task list
+git add pixi.toml pixi.lock hello.py .gitignore .gitattributes
+git commit -m "feat: hello, with an environment"
 \end{shell}
-Look at the \texttt{[tasks]} table in \file{pixi.toml}. Tasks can depend on
-other tasks and take arguments; edit the table by hand to:
-\begin{tomlcode}
-[tasks]
-hello = "python hello.py"
-greet = { cmd = "echo Hello, {{ name }}", args = ["name"] }
-all = { cmd = "echo done", depends-on = ["hello"] }
-\end{tomlcode}
-and try \cmd{pixi run greet SHiP} and \cmd{pixi run all}. Commit.
+Look at the \texttt{[tasks]} table that \cmd{pixi task add} wrote into
+\file{pixi.toml}.
 \end{exercise}
 
-\section{More than one environment}
+\begin{checkpoint}
+\texttt{hello} and \texttt{All checks passed!} printed, and one commit with
+the five files, but not \file{.pixi/}.
+\end{checkpoint}
 
-Some tools are needed only for some jobs: a linter, a benchmark tool, a
-documentation generator. pixi groups them into \emph{features} and combines
-features into named \emph{environments}, so that the linter does not end up
-in the analysis environment.
-
-\begin{exercise}{A separate environment for the linter}
-\begin{shell}
-pixi add --feature lint ruff
-pixi workspace environment add lint --feature lint --no-default-feature
-pixi task add --feature lint lint "ruff check ."
-pixi run lint                  # pixi picks the environment that has the task
-pixi run -e lint ruff --version
-\end{shell}
-Read the \texttt{[feature.lint]} and \texttt{[environments]} tables that
-appeared in \file{pixi.toml}. Write an unused \texttt{import os} into
-\file{hello.py} and run \cmd{pixi run lint} again. Remove it, and commit.
-\end{exercise}
+\begin{note}
+Tasks can also take arguments and depend on each other, and a workspace can
+have several \emph{environments}, built from \emph{features}, so that a tool
+needed for one job does not end up in the others. The team repository of
+\cref{ch:team} keeps \texttt{ruff} in an environment of its own that way; the
+\texttt{[feature.lint]} and \texttt{[environments]} tables of its
+\file{pixi.toml} show how.
+\end{note}
 
 \section{Keeping everybody on the same versions}
 
 \begin{description}[style=nextline]
-  \item[\cmd{pixi install -{}-locked}] installs exactly what \file{pixi.lock}
-    says, and fails if the lock no longer matches the manifest. This is what
-    CI runs: a change of requirements must come with its lock file.
-  \item[\cmd{pixi update}] solves again and moves to newer versions within
+  \item[\cmd{pixi lock}] solves the manifest and writes \file{pixi.lock}.
+    Run it whenever you change \file{pixi.toml} by hand, and commit both:
+    CI installs with \cmd{-{}-locked}, exactly what \file{pixi.lock} says,
+    and fails if the lock no longer matches the manifest.
+    \cmd{pixi lock -{}-check} fails if the lock was out of date.
+  \item[\cmd{pixi update -{}-no-install}] solves again and moves to newer versions within
     the manifest's ranges. The new \file{pixi.lock} is a change like any
     other: commit it, on its own, so that its effect can be tested and
     reviewed. In the ShipSoft repositories a bot opens such a pull request
     every month (\cref{ch:ci}).
-  \item[\cmd{pixi list}] shows the installed packages and versions.
+  \item[\cmd{pixi list}] shows the packages and versions of the environment.
 \end{description}
 
 \begin{pitfall}
@@ -155,7 +184,7 @@ Never edit \file{pixi.lock} by hand, and do not resolve conflicts inside it
 (the \file{.gitattributes} that \cmd{pixi init} writes tells git not to
 try). If a rebase conflicts on \file{pixi.lock}, take the version of
 \texttt{main} (\cmd{git checkout upstream/main -{}- pixi.lock}), run
-\cmd{pixi install} to solve again with your manifest, and \cmd{git add} the
+\cmd{pixi lock} to solve again with your manifest, and \cmd{git add} the
 result. Better still: do not change the environment in a pull request that is
 about something else.
 \end{pitfall}
@@ -173,23 +202,25 @@ install = { cmd = "cmake --install build", depends-on = ["build"] }
 test = { cmd = "ctest --test-dir build --output-on-failure", depends-on = ["build"] }
 smoke = { cmd = "scripts/smoke.sh", depends-on = ["build"] }
 \end{tomlcode}
-so \cmd{pixi run test} configures, builds and tests a fresh checkout.
+so \cmd{pixi cvmfs test} configures, builds and tests a fresh checkout.
 
 \begin{itemize}
   \item \textbf{A \texttt{lint} environment} holds the formatting and lint
     tools (\texttt{prek}, \texttt{ruff}, \texttt{clang-format},
     \texttt{codespell}, \texttt{commitizen}, \ldots).
-    \cmd{pixi run lint} checks every file; \cmd{pixi run install-hooks}
-    installs git hooks that run the same checks at every commit.
+    \cmd{pixi cvmfs lint} checks every file. (A task \cmd{install-hooks}
+    installs git hooks that run the same checks at every commit, but they
+    call \cmd{pixi run}: on lxplus, run \cmd{pixi cvmfs lint} before you push
+    instead.)
   \item \textbf{Other environments} for special jobs, such as \texttt{bench}
     for benchmarks in \pkg{aegir}.
   \item \textbf{A commented-out \texttt{dev} feature} builds a dependency
     from a local checkout, for changing two packages at once (see the
     developer guide of the SHiP documentation). It stays commented out in
     commits, together with the lock-file changes it causes.
-  \item \textbf{CI runs the same tasks}, with \cmd{-{}-locked}
-    (\cref{ch:ci}). If \cmd{pixi run -{}-locked test} passes on your machine,
-    the build check passes in CI.
+  \item \textbf{CI runs the same tasks}, as \cmd{pixi run -{}-locked test}
+    on a fresh GitHub machine (\cref{ch:ci}). If \cmd{pixi cvmfs test} passes
+    on lxplus with the committed lock file, the build check passes in CI.
 \end{itemize}
 
 \begin{levelcheck}
@@ -197,19 +228,20 @@ so \cmd{pixi run test} configures, builds and tests a fresh checkout.
   \can say what belongs in \file{pixi.toml} and what in \file{pixi.lock}, and
        why both are committed;
   \can create a workspace, add packages, and run a command in it with
-       \cmd{pixi run} or \cmd{pixi shell};
+       \cmd{pixi cvmfs}, without filling your AFS quota;
   \can define tasks, and a second environment from a feature;
-  \can reproduce an environment exactly with \cmd{-{}-locked}, and update it
+  \can keep \file{pixi.lock} in step with \file{pixi.toml}, and update it
        on purpose.
 \end{itemize}
 \end{levelcheck}
 
 \begin{solution}
-The commands of this chapter were checked with pixi~0.82: \cmd{init},
-\cmd{task add}, task arguments and \texttt{depends-on}, \cmd{add -{}-feature},
-\cmd{workspace environment add -{}-feature -{}-no-default-feature}, automatic
-environment selection for a feature-only task, and \texttt{PIXI\_CACHE\_DIR}.
-Solving \texttt{python} and \texttt{root\_base} needs network access to
-\texttt{conda-forge} and was not run in the review environment: do
-\cref{ex:pixifirst} once on the tutorial machines.
+The manifests and the plain pixi commands of this chapter (\cmd{init},
+\cmd{add -{}-no-install}, \cmd{lock}, \cmd{task add}, task arguments and
+\texttt{depends-on}, \cmd{workspace environment add -{}-feature
+-{}-no-default-feature}) were checked with pixi~0.72.0, the version on
+CVMFS, and 0.82. \cmd{pixi cvmfs} itself exists only on CVMFS and was not
+run in the review environment; the booklet assumes it accepts a task or a
+command as \cmd{pixi run} does. Do this chapter once on lxplus before the
+session.
 \end{solution}

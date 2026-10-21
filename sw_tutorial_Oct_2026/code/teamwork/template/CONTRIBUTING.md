@@ -10,11 +10,11 @@ These follow the way pull requests work in the ShipSoft repositories.
 3. **Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/):**
    `feat(task-07): fit the Breit-Wigner with a Poisson likelihood`.
    Use `fix(task-07): ...` for a correction after review.
-4. **Test before you ask for review:** `pixi run check-task NN` must say
-   `passed`, and `pixi run lint` must be clean. Paste the check output into
+4. **Test before you ask for review:** `pixi cvmfs check-task NN` must say
+   `passed`, and `pixi cvmfs lint` must be clean. Paste the check output into
    the pull-request description.
 5. **CI must be green.** Every push to a pull request runs the same checks
-   (`pixi run check`, `pixi run lint`). If "All checks passed" is red, open
+   (`pixi cvmfs check`, `pixi cvmfs lint`). If "All checks passed" is red, open
    the log of the failed job, reproduce it locally with the same pixi task,
    fix, and push again.
 6. **Review:** your reviewer is the owner of the next task (task 10 is
@@ -26,7 +26,7 @@ These follow the way pull requests work in the ShipSoft repositories.
    ```bash
    git fetch upstream
    git rebase upstream/main
-   pixi run check-task NN
+   pixi cvmfs check-task NN
    git push --force-with-lease
    ```
 

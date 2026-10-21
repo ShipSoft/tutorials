@@ -12,10 +12,12 @@ Part~I is the way of working, with no SHiP software yet: git on your own, then
 with branches, then with other people and pull requests; pixi environments;
 continuous integration; and finally a small analysis that the whole group
 writes together, one reviewed and CI-checked pull request per person.
-Part~II follows one physics example from beginning to end: a heavy neutral
-lepton (HNL, \HNL) produced in the SHiP target that decays to \pimu{} inside
-the decay volume. Every chapter of Part~II adds one piece of the software
-chain, and each piece consumes what the previous one produced.
+Part~II follows one physics example from beginning to end, from scratch: the
+muons that 400\,GeV protons produce in the SHiP target, the largest
+background of the experiment. You generate the proton collisions yourself and
+see what leaves the hadron absorber, then follow an artificial sample of
+muons from the back of the muon shield through the detector. Every chapter of Part~II adds one piece of the software chain, and
+each piece consumes what the previous one produced.
 
 \begin{figure}[ht]
 \centering
@@ -42,11 +44,11 @@ chain, and each piece consumes what the previous one produced.
   \node[rstep] (s3) at (5.2,-2)  {\ref{ch:geometry}\enspace Geometry};
   \node[rstep] (s4) at (7.8,-2)  {\ref{ch:services}\enspace geometry and field services};
   \node[rstep] (s5) at (10.4,-2) {\ref{ch:datamodel}\enspace data model};
-  \node[rstep] (s6) at (13.0,-2) {\ref{ch:generator}\enspace the HNL sample};
-  \node[rstep] (s7) at (13.0,-3.3) {\ref{ch:aegir}\enspace aegir simulation};
+  \node[rstep] (s6) at (13.0,-2) {\ref{ch:production}\enspace fixed-target production};
+  \node[rstep] (s7) at (13.0,-3.3) {\ref{ch:aegir}\enspace muons in the detector};
   \node[rstep] (s8) at (10.4,-3.3) {\ref{ch:display}\enspace \mbox{sea-cucumber} display};
   \node[rstep] (s9) at (7.8,-3.3)  {\ref{ch:digitisation}\enspace Shannon digitisation};
-  \node[capstone] (s10) at (5.2,-3.3) {\ref{ch:analysis}\enspace HNL analysis};
+  \node[capstone] (s10) at (5.2,-3.3) {\ref{ch:analysis}\enspace muon analysis};
   \node[rstep, dashed] (s11) at (2.6,-3.3) {\ref{ch:outlook}\enspace Trout: discussion};
   \foreach \a/\b in {s1/s2, s2/s3, s3/s4, s4/s5, s5/s6, s6/s7, s7/s8, s8/s9, s9/s10, s10/s11}
     \draw[next] (\a) -- (\b);
@@ -60,11 +62,11 @@ learnt so far comes together. Part~II starts once Part~I is done.}
 
 \begin{pitfall}
 This is a reviewed teaching draft, not an end-to-end validated release.
-The archive contains no HNL ROOT sample or EventCalc converter, field maps,
-or frozen common environment. The supplied workflow also selects passive
-material in some detectors. Its cut flow illustrates the interfaces; it is
-not a detector efficiency or sensitivity result. See \cref{app:review}
-for the checked source revisions and remaining prerequisites.
+The archive contains no field maps and no frozen common environment, and the
+supplied workflows have not been run end to end. The small samples of the
+exercises illustrate the interfaces; their rates are not a background
+prediction. See \cref{app:review} for the checked source revisions and
+remaining prerequisites.
 \end{pitfall}
 
 \section*{What you will learn}
@@ -86,8 +88,10 @@ for the checked source revisions and remaining prerequisites.
   \item how magnetic field maps are stored and served
         (\repo{field\_service});
   \item what the event data model looks like on disk (\repo{data-model});
-  \item how to simulate events with \pkg{aegir} (\repo{aegir}), the
-        Phlex-based simulation built on Geant4;
+  \item how to simulate proton collisions in the target and the muons they
+        produce with \pkg{aegir} (\repo{aegir}), the Phlex-based simulation
+        built on Pythia\,8 and Geant4: a production that ends on a scoring
+        plane behind the hadron absorber, and muons through the detector;
   \item how to look at them with the event display \pkg{sea-cucumber}
         (\repo{sea-cucumber});
   \item how to digitise them with \pkg{Shannon} (\repo{Shannon});
@@ -101,15 +105,15 @@ subject of the closing discussion (\cref{ch:outlook}).
 
 Commands to type in a terminal look like this:
 \begin{shell}
-pixi run phlex -c <(jsonnet hnl_sim.jsonnet)
+pixi cvmfs phlex -c <(jsonnet --tla-code events=100 ft_production.jsonnet)
 \end{shell}
 Illustrative output is shown with a vertical rule on the left; exact log text may differ:
 \begin{outputlisting}
-[info] sim_output_module: writing 'hnl_sim.root' ...
+[info] sim_output_module: writing 'ft_production.root' ...
 \end{outputlisting}
 
 Package names are set in \pkg{bold sans serif}, files as \file{path/to/file},
-and data-model fields as \field{pdgCode}. Lengths are in millimetres,
+and data-model fields as \field{pdg\_code}. Lengths are in millimetres,
 momenta and energies in GeV, and times in nanoseconds throughout, matching the
 software. The coordinate system is the one of the SHiP geometry: the origin is
 the front face of the target, $z$ points downstream along the beam, $y$

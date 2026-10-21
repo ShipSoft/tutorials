@@ -86,7 +86,7 @@ tasks in order. It stops, without an error, at the first task that is not
 written yet:
 
 \begin{outputlisting}
-$ pixi run analysis
+$ pixi cvmfs analysis
 Pixi task (analysis): python mystery_analysis.py
 --- task  1/10: open_file
 mystery.root: 20000 entries in 'events'
@@ -109,11 +109,11 @@ answer it knows ($M = 50$\,GeV, $\Gamma = 4$\,GeV: \emph{not} the mystery
 particle), and checks your function's Output against its contract:
 
 \begin{outputlisting}
-$ pixi run check-task 4
+$ pixi cvmfs check-task 4
 Pixi task (check-task): python check_task.py 4
 task  4: FAILED
       the histogram must be named 'h_mystery', got 'h'
-$ pixi run check-task 4
+$ pixi cvmfs check-task 4
 Pixi task (check-task): python check_task.py 4
 task  4: passed
 \end{outputlisting}
@@ -154,19 +154,18 @@ repository's \file{README.md}, in your first commit.
 
 Fork the team repository on GitHub (``Fork'' button), then:
 \begin{shell}
-git clone git@github.com:<you>/<team-repo>.git
-cd <team-repo>
-git remote add upstream git@github.com:<organisers>/<team-repo>.git
-pixi install                                # Python and ROOT, from pixi.lock
+git clone git@github.com:<you>/sw_tutorial_2026.git
+cd sw_tutorial_2026
+git remote add upstream git@github.com:matclim/sw_tutorial_2026.git
 cp <wherever-it-is>/mystery.root .          # data: not under version control
-pixi run analysis                           # stops at task 1 for now
-pixi run check                              # 10 not written yet, 0 failed
+pixi cvmfs analysis                         # stops at task 1 for now
+pixi cvmfs check                            # 10 not written yet, 0 failed
 \end{shell}
 \cmd{pixi task list} shows what else the repository offers.
 
 \begin{checkpoint}
-\cmd{pixi run analysis} stops at task~1 without an error, and
-\cmd{pixi run check} reports \texttt{0 passed, 10 not written yet, 0 failed}.
+\cmd{pixi cvmfs analysis} stops at task~1 without an error, and
+\cmd{pixi cvmfs check} reports \texttt{0 passed, 10 not written yet, 0 failed}.
 \end{checkpoint}
 
 \Needspace{12\baselineskip}
@@ -175,9 +174,10 @@ pixi run check                              # 10 not written yet, 0 failed
 One branch, one task:
 \begin{shell}
 git switch -c task-04-book-histogram        # task-NN-short-description
-# ... write your function, and your name in README.md ...
-pixi run check-task 4                       # until it says "passed"
-pixi run lint                               # until ruff is happy
+vim mystery_analysis.py                     # write your function
+vim README.md                               # your name and your reviewer's
+pixi cvmfs check-task 4                     # until it says "passed"
+pixi cvmfs lint                             # until ruff is happy
 git add mystery_analysis.py README.md
 git commit -m "feat(task-04): book the mystery histogram"
 \end{shell}
@@ -192,7 +192,7 @@ git push -u origin task-04-book-histogram
 \end{shell}
 Open the pull request against \texttt{main} of the team repository (the page
 GitHub shows after the push has a button for it). Describe what you did,
-paste the output of \cmd{pixi run check-task 4}, and ask your reviewer for a
+paste the output of \cmd{pixi cvmfs check-task 4}, and ask your reviewer for a
 review.
 
 CI starts by itself (\cref{sec:teamci}). Wait for ``All checks passed''. If it
@@ -217,7 +217,7 @@ to date. Rebase:
 \begin{shell}
 git fetch upstream
 git rebase upstream/main
-pixi run check-task 4
+pixi cvmfs check-task 4
 git push --force-with-lease
 \end{shell}
 Since every task lives in its own function, this rebase almost never
@@ -231,7 +231,7 @@ the merge queue, if the repository has one).
 After every merge, everybody can run the team's analysis as far as it goes:
 \begin{shell}
 git switch main && git pull upstream main
-pixi run analysis
+pixi cvmfs analysis
 git switch task-04-book-histogram           # back to your own work
 \end{shell}
 
@@ -277,7 +277,9 @@ is a separate pull request.
 \section{Setting it up}
 \label{sec:teamsetup}
 
-The team repository is \tbd{URL of the team repository}. It starts from the
+The team repository is
+\href{https://github.com/matclim/sw_tutorial_2026}{\file{github.com/matclim/sw\_tutorial\_2026}}.
+It starts from the
 files in \file{code/teamwork/template/}: the skeleton
 \file{mystery\_analysis.py}, the checker \file{check\_task.py}, the pixi
 manifest \file{pixi.toml} with its lock file, the lint settings
