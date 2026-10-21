@@ -178,17 +178,21 @@ that git accepts is not necessarily one that works.
 \end{pitfall}
 
 \begin{exercise}{A conflict on purpose}
+Two branches change the same line of the same file: \texttt{main} and
+\texttt{mine} each give \file{settings.py} a different output name.
 \begin{shell}
-printf 'OUTPUT = "plot.pdf"\n' > settings.py
+vim settings.py                # write: OUTPUT = "plot.pdf"
 git add settings.py && git commit -m "feat: settings"
 git switch -c mine
-printf 'OUTPUT = "mine.pdf"\n' > settings.py && git commit -am "feat: my name"
+vim settings.py                # change to: OUTPUT = "mine.pdf"
+git commit -am "feat: my output"
 git switch main
-printf 'OUTPUT = "theirs.pdf"\n' > settings.py && git commit -am "feat: their name"
+vim settings.py                # change to: OUTPUT = "theirs.pdf"
+git commit -am "feat: their output"
 git switch mine
-git rebase main                # stops: CONFLICT
+git rebase main                # stops: CONFLICT in settings.py
 \end{shell}
-Open \file{settings.py}, decide what the line should be, remove the markers,
+Open \file{settings.py} in your editor, decide what the line should be, remove the markers,
 \cmd{git add settings.py} and \cmd{git rebase -{}-continue} (git opens an
 editor for the message: save and close it). Look at the graph. Then make the
 same conflict again and leave it with \cmd{git rebase -{}-abort} instead.

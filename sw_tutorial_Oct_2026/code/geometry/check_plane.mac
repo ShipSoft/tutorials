@@ -1,0 +1,13 @@
+# check_plane.mac -- no window: the volume tree, the mass, and an overlap test.
+#   ship_g4view --batch calo_plane.db check_plane.mac
+
+/run/initialize
+
+# Verbosity 4: names, materials, volumes and densities, and the total mass of
+# the volume drawn. Below 10, repeated volumes are listed once.
+/vis/ASCIITree/verbose 4
+/vis/drawTree /tutorial/calo_plane ATree
+
+# Shoot points on the surface of every volume and report those that lie in a
+# neighbour or outside the mother
+/geometry/test/run

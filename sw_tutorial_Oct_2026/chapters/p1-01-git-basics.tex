@@ -47,6 +47,36 @@ You work in three places:
 records it. Because you choose, one commit can hold one logical change even if
 you edited several things.
 
+\section{Editing files}
+\label{sec:editor}
+
+The commands in this booklet open files with \cmd{vim}, which is on every
+Linux machine, including lxplus. Any editor will do (nano, VS Code, Emacs,
+\ldots): replace \cmd{vim} by yours. What you need of vim to start:
+
+\begin{center}\small
+\begin{tabular}{@{}l l@{}}
+\toprule
+\cmd{vim notes.md} & open the file (vim creates it when you save) \\
+\cmd{i}            & insert mode: now type the text \\
+\cmd{Esc}          & back to normal mode, where keys are commands \\
+\cmd{:w}, \cmd{:q} & save; quit \\
+\cmd{:wq}          & save and quit \\
+\cmd{:q!}          & quit and throw the changes away \\
+\cmd{u}, \cmd{dd}, \cmd{/word} & undo; delete the line; search \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{pitfall}
+Stuck in vim? Press \cmd{Esc}, type \cmd{:q!} and press Enter. Then run
+\cmd{vimtutor} once, in a spare half hour: it teaches the rest in 30 minutes.
+\end{pitfall}
+
+git opens the same editor whenever it needs text from you (a commit message
+without \cmd{-m}, a rebase to continue). The first exercise tells it which
+one.
+
 \section{First steps}
 
 \begin{exercise}{Your first repository}
@@ -57,9 +87,10 @@ git config --global user.name "Your Name"
 git config --global user.email "your.name@cern.ch"
 git config --global init.defaultBranch main
 git config --global pull.rebase true
+git config --global core.editor vim
 mkdir git-playground && cd git-playground
 git init
-echo "print('hello')" > hello.py
+vim hello.py                     # write print('hello'), then :wq
 git status                       # hello.py is "untracked"
 git add hello.py
 git commit -m "feat: say hello"
@@ -74,7 +105,8 @@ commits to you later. \cmd{pull.rebase true} only matters from
 \end{note}
 
 \begin{exercise}{Stage, look, undo}
-Change \file{hello.py} to print \texttt{'hello, SHiP'}.
+Open \file{hello.py} in your editor again and change it to print
+\texttt{'hello, SHiP'}.
 \begin{enumerate}
   \item \cmd{git status} and \cmd{git diff}: what does git say changed?
   \item \cmd{git add hello.py}, then \cmd{git diff} and
@@ -138,7 +170,7 @@ in a file called \file{.gitignore}, and git stops offering them to you.
 \begin{shell}
 touch data.root plot.pdf
 git status                     # both are offered as "untracked"
-printf '*.root\n*.pdf\n' > .gitignore
+vim .gitignore                 # two lines: *.root and *.pdf
 git status                     # now only .gitignore is
 git add .gitignore && git commit -m "chore: ignore data and plots"
 \end{shell}

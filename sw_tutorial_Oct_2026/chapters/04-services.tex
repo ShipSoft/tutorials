@@ -20,27 +20,27 @@ interface, modelled on DD4hep's \texttt{IGeoSvc} (LHCb, Key4hep) and ALICE
 O\textsuperscript{2}'s \texttt{GeometryManager}:
 
 \begin{cpp}
-namespace ship {
+namespace SHiP {
 class IGeometryService {
  public:
   virtual ~IGeometryService() = default;
   virtual const GeoVPhysVol* geoModelWorld() const = 0;           // GeoModel tree
-  virtual G4LogicalVolume* geant4WorldLogical() = 0;              // Geant4 world
-  virtual G4LogicalVolume* getLogicalVolume(const std::string& name) const = 0;
+  virtual G4LogicalVolume& geant4WorldLogical() = 0;              // Geant4 world
+  virtual G4LogicalVolume* getLogicalVolume(std::string_view name) const = 0;
 };
 }
 \end{cpp}
 
-\texttt{SHiPGeometryService} implements it, with two ways to obtain the
-geometry:
+\texttt{SHiP::GeometryService} implements it, with two ways to obtain the
+geometry (before version~0.5 the class was \texttt{ship::SHiPGeometryService}):
 
 \begin{cpp}
-#include <GeometryService/SHiPGeometryService.h>
+#include <SHiP/GeometryService/GeometryService.h>
 
 // from a file written by build_geometry
-auto svc = ship::SHiPGeometryService::fromFile("ship_geometry.db");
+auto svc = SHiP::GeometryService::fromFile("ship_geometry.db");
 // or straight from the C++ description, without a file
-auto svc2 = ship::SHiPGeometryService::fromSource();
+auto svc2 = SHiP::GeometryService::fromSource();
 
 const GeoVPhysVol* world = svc->geoModelWorld();
 \end{cpp}
@@ -56,9 +56,14 @@ you may meet:
     GeoModel to Geant4 volumes on its first call only (guarded by
     \texttt{std::call\_once}), because the conversion needs a
     \texttt{G4RunManager} on the calling thread. Call it from
-    \texttt{G4VUserDetectorConstruction::Construct()}.
+    \texttt{G4VUserDetectorConstruction::Construct()}. It returns the world
+    by reference and throws if the conversion fails.
     \texttt{getLogicalVolume()} only works after that.
 \end{description}
+
+\cmd{ship\_g4view}, the viewer of \cref{sec:g4view}, is the smallest program
+that does all this: \texttt{fromFile()}, then \texttt{geant4WorldLogical()}
+inside \texttt{Construct()}, then one \texttt{G4PVPlacement} for the world.
 
 The library also provides \texttt{G4RayScanner}, which walks a straight line
 through the Geant4 geometry and returns the materials crossed with their
@@ -134,12 +139,12 @@ regions cost nothing:
 
 \begin{jsonnetcode}
 field: lib.field_map([
-  { name: 'MuonShield',   volume_pattern: '/SHiP/muon_shield',
-    file: 'muon_shield.root',         map: 'muon_shield',
-    translation: [0, 0, 2040] },       // shield entrance [mm]
+  { name: 'MuonShield', volume_pattern: '/SHiP/muon_shield',
+    file: 'muon_shield_TRY_2026.root', map: 'muon_shield_TRY_2026',
+    translation: [0, 0, 2040] },     // shield entrance [mm]
   { name: 'Spectrometer', volume_pattern: '/SHiP/magnet',
-    file: 'spectrometer_dipole.root', map: 'spectrometer_dipole',
-    translation: [0, 0, 89570] },      // magnet centre [mm]
+    file: 'spectrometer_V21_2455.root', map: 'spectrometer_V21_2455',
+    translation: [0, 0, 89570] },    // magnet centre [mm]
 ]),
 \end{jsonnetcode}
 
@@ -162,16 +167,21 @@ field: lib.field_map([
 \end{tabularx}
 \end{center}
 
-The tools are in the \texttt{field-service-tools} conda package; from a
-\repo{field\_service} checkout, \cmd{pixi run install} puts them on the
-environment's \texttt{PATH}. \tbd{confirm the tutorial environment includes
-them}
+The tools are in the \texttt{field-service-tools} conda package, which the
+\repo{field\_maps} workspace of \cref{ch:setup} uses to convert the maps; its
+environment is where you run them.
+
+In this tutorial the muon-shield map matters most: its field is what sweeps
+the muons from the target away from the decay volume in \cref{ch:aegir}.
 
 \begin{exercise}{Inspect the field maps}
-In \file{work/}, where the provided maps are:
+In the \repo{field\_maps} environment, in \file{work/}, where the maps are:
 \begin{shell}
-fieldmap_dump spectrometer_dipole.root
-fieldmap_dump muon_shield.root
+cd "$SHIP_TUTORIAL/field_maps"
+pixi cvmfs
+cd "$SHIP_TUTORIAL/work"
+fieldmap_dump spectrometer_V21_2455.root
+fieldmap_dump muon_shield_TRY_2026.root
 \end{shell}
 For each map, note the grid extent and spacing, and whether it is mirrored.
 \end{exercise}
@@ -182,13 +192,14 @@ at $(0,0,0)$. Evaluate the field there and one metre either side along the
 beam:
 \begin{shell}
 printf '0 0 0\n0 0 -1000\n0 0 1000\n' | \
-  fieldmap_dump spectrometer_dipole.root spectrometer_dipole
-plot_field_map spectrometer_dipole.root spectrometer_dipole spectro_plots.root
+  fieldmap_dump spectrometer_V21_2455.root spectrometer_V21_2455
+plot_field_map spectrometer_V21_2455.root spectrometer_V21_2455 \
+  spectro_plots.root
 \end{shell}
 Which component dominates? Open the $B_y$-versus-$z$ PDF and estimate the
 field integral $\int B_y\,\mathrm{d}z$. The transverse momentum kick is
 $\Delta p_T\,[\mathrm{GeV}] \approx 0.3 \int B\,\mathrm{d}z\,[\mathrm{T\,m}]$:
-what does that mean for the bending of a 5\,GeV muon from an HNL decay?
+what does that mean for the bending of a 5\,GeV muon crossing the spectrometer?
 \end{exercise}
 
 \begin{pitfall}
@@ -203,21 +214,26 @@ up to the volume edge.
 \begin{note}
 For a demonstration, a uniform spectrometer field can replace the real map. For example, 1\,T vertical over the magnet volume:
 \begin{shell}
-generate_constant_fieldmap spectrometer_dipole.root spectrometer_dipole \
+generate_constant_fieldmap spectrometer_uniform.root spectrometer_uniform \
   0 1 0  -2500 2500  -3500 3500  -2500 2500
 \end{shell}
 (arguments: file, map name, $B_x\,B_y\,B_z$ in T, then
 $x_\mathrm{min}\,x_\mathrm{max}\,y_\mathrm{min}\,y_\mathrm{max}\,z_\mathrm{min}\,z_\mathrm{max}$
-in mm). The workflow still references \file{muon\_shield.root}: either supply
-that map too, or remove its magnet entry for this spectrometer-only demonstration.
+in mm). To use it, open a copy of \file{muon\_gun.jsonnet} in your editor
+and set \texttt{file} and \texttt{map} of the \texttt{Spectrometer} entry to
+\texttt{spectrometer\_uniform.root} and \texttt{spectrometer\_uniform}.
 The uniform-field sample is not suitable for an absolute performance prediction.
 \end{note}
 
 \begin{organisernote}
-Decide which maps participants use and put them where \cref{ch:setup} says.
-FairShip's maps converted with \cmd{fairship\_to\_fieldmap}
-(\cmd{--symmetry quadrant\_dipole} for the muon shield) work with the
-translations in \file{aegir/workflows/gun\_st\_field.jsonnet}, which this
-booklet reuses. Fill in the expected numbers for the exercise once the maps
-are fixed: $B_y$ at the centre and the field integral.
+The maps are those of \repo{field\_maps}: FairShip's \file{TRY\_2026.root}
+and \file{2026\_07\_02\_MainSpectrometerField\_V21\_2455.root} at the FairShip
+commit pinned in its \file{placements.json}, converted with
+\cmd{fairship\_to\_fieldmap} (\cmd{--symmetry quadrant\_dipole} for the
+muon shield). Its \file{field\_maps.libsonnet} gives the same magnets and
+translations as the workflows of this booklet. The muon-shield grid is
+$111\times110\times651$ nodes over $x,y\in[0,2.2]$\,m,
+$z\in[-0.5,32]$\,m; the spectrometer grid $101\times101\times151$ nodes over
+$x,y\in[-5,5]$\,m, $z\in[-7.5,7.5]$\,m. Fill in the expected numbers for
+the exercise: $B_y$ at the centre and the field integral.
 \end{organisernote}

@@ -15,9 +15,9 @@ by one person, and starts out empty. Every function says what it receives
 only; do not change the function's name or arguments, because your teammates'
 functions call it.
 
-    pixi run analysis                          # run the whole chain
-    pixi run check-task 4                      # test task 4 on its own
-    pixi run check                             # test every task
+    pixi cvmfs analysis                        # run the whole chain
+    pixi cvmfs check-task 4                    # test task 4 on its own
+    pixi cvmfs check                           # test every task
 
 The chain runs from task 1 and stops, politely, at the first task that is not
 written yet. Every merged pull request lets it run further.
@@ -70,7 +70,7 @@ CANDIDATES = {
 #           ROOT's error for a missing file is cryptic: check
 #           os.path.exists(path) first and raise FileNotFoundError with a
 #           message that names the file.
-# Check:    pixi run check-task 1
+# Check:    pixi cvmfs check-task 1
 # ===========================================================================
 def open_file(path, ntuple_name=NTUPLE_NAME):
     # ---- TASK 1: your code below (delete the "raise" line) ----------------
@@ -89,7 +89,7 @@ def open_file(path, ntuple_name=NTUPLE_NAME):
 #           range(reader.GetNEntries())
 # Hints:    A list comprehension does it in one line. Convert each value
 #           with float(...) so that later tasks get plain Python numbers.
-# Check:    pixi run check-task 2
+# Check:    pixi cvmfs check-task 2
 # ===========================================================================
 def read_masses(reader, field_name=FIELD_NAME):
     # ---- TASK 2: your code below (delete the "raise" line) ----------------
@@ -113,7 +113,7 @@ def read_masses(reader, field_name=FIELD_NAME):
 #           they different? A Breit-Wigner has very long tails, so its mean
 #           and RMS are pulled around by a few far-away values, while
 #           quantiles are not. Task 4 relies on the quantiles.
-# Check:    pixi run check-task 3
+# Check:    pixi cvmfs check-task 3
 # ===========================================================================
 def summarise(masses):
     # ---- TASK 3: your code below (delete the "raise" line) ----------------
@@ -135,7 +135,7 @@ def summarise(masses):
 #           inside the central 68% interval (the bin width should be a
 #           fraction of the width of the peak). The y-axis title should give
 #           the bin width, e.g. "Events / 0.5 GeV" (use an f-string).
-# Check:    pixi run check-task 4
+# Check:    pixi cvmfs check-task 4
 # ===========================================================================
 def book_histogram(stats):
     # ---- TASK 4: your code below (delete the "raise" line) ----------------
@@ -155,7 +155,7 @@ def book_histogram(stats):
 #           h.GetBinContent(h.GetNbinsX() + 1)   overflow (above the range)
 # Hints:    Print how many values fell below and above the histogram range.
 #           If it is more than a few percent, tell the owner of task 4.
-# Check:    pixi run check-task 5
+# Check:    pixi cvmfs check-task 5
 # ===========================================================================
 def fill_histogram(h_mystery, masses):
     # ---- TASK 5: your code below (delete the "raise" line) ----------------
@@ -182,7 +182,7 @@ def fill_histogram(h_mystery, masses):
 #           BW(x). The peak position is a good start for M; the full width at
 #           half maximum (FWHM) of the peak is exactly Gamma for a
 #           Breit-Wigner. A fit started far from the answer may not find it.
-# Check:    pixi run check-task 6
+# Check:    pixi cvmfs check-task 6
 # ===========================================================================
 def make_model(h_mystery):
     # ---- TASK 6: your code below (delete the "raise" line) ----------------
@@ -206,7 +206,7 @@ def make_model(h_mystery):
 # Hints:    Which option is right for a histogram of counts, chi-square or
 #           likelihood? Try both and compare. If Status() is not 0, raise a
 #           RuntimeError: a failed fit must not produce a number.
-# Check:    pixi run check-task 7
+# Check:    pixi cvmfs check-task 7
 # ===========================================================================
 def fit_model(h_mystery, f_func):
     # ---- TASK 7: your code below (delete the "raise" line) ----------------
@@ -229,7 +229,7 @@ def fit_model(h_mystery, f_func):
 # Hints:    The width parameter can come out negative: the Breit-Wigner only
 #           depends on Gamma squared. Report its absolute value. Print the
 #           results with a sensible number of digits (look at the errors).
-# Check:    pixi run check-task 8
+# Check:    pixi cvmfs check-task 8
 # ===========================================================================
 def extract_results(f_func, fit_result):
     # ---- TASK 8: your code below (delete the "raise" line) ----------------
@@ -250,7 +250,7 @@ def extract_results(f_func, fit_result):
 #           difference between its width and the fitted one. Is the best
 #           match also compatible in width? A pull of a few units is fine
 #           here (the reference values are rounded); hundreds are not.
-# Check:    pixi run check-task 9
+# Check:    pixi cvmfs check-task 9
 # ===========================================================================
 def identify_particle(results, candidates=CANDIDATES):
     # ---- TASK 9: your code below (delete the "raise" line) ----------------
@@ -276,7 +276,7 @@ def identify_particle(results, candidates=CANDIDATES):
 #           SaveAs, otherwise Python may delete them too early. A
 #           logarithmic y axis (c.SetLogy()) shows the tails. Write mass and
 #           width with their errors on the plot.
-# Check:    pixi run check-task 10
+# Check:    pixi cvmfs check-task 10
 # ===========================================================================
 def save_plot(h_mystery, f_func, results, path=OUTPUT_PDF):
     # ---- TASK 10: your code below (delete the "raise" line) ---------------

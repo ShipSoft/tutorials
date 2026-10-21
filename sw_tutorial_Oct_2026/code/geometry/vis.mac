@@ -1,0 +1,24 @@
+# vis.mac -- draw the chosen geometry in the Geant4 window.
+# ship_g4view runs it after "/ship/geometry/open <file.db>".
+
+/run/initialize
+
+# Open a viewer. Without an argument Geant4 picks the best one available
+# (OpenGL in the Qt window). Over X11 from lxplus, software rendering is
+# often faster: G4VIS_DEFAULT_DRIVER=TSG_QT_ZB pixi cvmfs view
+/vis/open
+/vis/viewer/set/autoRefresh false
+/vis/verbose errors
+
+/vis/drawVolume
+/vis/viewer/set/style wireframe
+/vis/viewer/set/upVector 0 1 0
+/vis/viewer/set/viewpointThetaPhi 120 150 deg
+/vis/scene/add/axes
+
+# Keep the tracks of every /run/beamOn event in the picture
+/vis/scene/add/trajectories smooth
+/vis/scene/endOfEventAction accumulate
+
+/vis/viewer/set/autoRefresh true
+/vis/verbose warnings

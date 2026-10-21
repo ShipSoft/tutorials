@@ -4,11 +4,11 @@
 # The environment of the team analysis: everybody, and CI, runs the same
 # Python and the same ROOT. Commit this file together with pixi.lock.
 #
-#   pixi install          # once: create the environment in .pixi/
-#   pixi run check-task 4 # test task 4 on its own
-#   pixi run check        # test every task
-#   pixi run analysis     # run the chain as far as it goes
-#   pixi run lint         # static checks of the Python code
+# On lxplus (pixi from CVMFS, see the README):
+#   pixi cvmfs check-task 4  # test task 4 on its own
+#   pixi cvmfs check         # test every task
+#   pixi cvmfs analysis      # run the chain as far as it goes
+#   pixi cvmfs lint          # static checks of the Python code
 
 [workspace]
 name = "mystery-resonance"
@@ -24,7 +24,7 @@ root_base = ">=6.36"  # ROOT with PyROOT, without the optional extras
 [tasks]
 analysis = { cmd = "python mystery_analysis.py", description = "Run the ten tasks as far as they are written" }
 check = { cmd = "python check_task.py all", description = "Test every task (what CI runs)" }
-check-task = { cmd = "python check_task.py {{ n }}", args = ["n"], description = "Test task n alone: pixi run check-task 4" }
+check-task = { cmd = "python check_task.py {{ n }}", args = ["n"], description = "Test task n alone: pixi cvmfs check-task 4" }
 
 # A separate environment for the linter, as in the ShipSoft repositories: the
 # tools do not end up in the analysis environment.

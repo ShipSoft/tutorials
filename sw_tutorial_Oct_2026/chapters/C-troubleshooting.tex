@@ -3,6 +3,27 @@
 
 \newcommand{\problem}[1]{\par\medskip\noindent{\raggedright\ttfamily\small\color{shipnavy}#1\par}\nobreak\smallskip\noindent}
 
+\problem{Disk quota exceeded}
+Your AFS home is full (\cmd{fs lq \textasciitilde}). Most often an environment
+was installed into a project's \file{.pixi/} by \cmd{pixi run},
+\cmd{pixi shell}, \cmd{pixi install} or \cmd{pixi add}: run \cmd{pixi clean}
+in that project and use \cmd{pixi cvmfs} (\cref{sec:pixicvmfs}). Large
+\file{build/} directories of checkouts you no longer need are the next
+suspect.
+
+\problem{pixi: no such command: cvmfs}
+The CVMFS pixi is not first on your \texttt{PATH}. \cmd{which pixi} must
+print a path in the SHiP area of CVMFS:
+\begin{shell}
+/cvmfs/ship-nightlies.cern.ch/pixi/.../bin/pixi
+\end{shell} Check the
+\cmd{export PATH=\ldots} line in \file{\textasciitilde/.bashrc}
+(\cref{ex:pixicvmfs}) and open a new shell.
+
+\problem{qt.qpa.xcb: could not connect to display}
+The Geant4 viewer needs X11: log in with \cmd{ssh -Y}. Without a display, use
+\cmd{pixi cvmfs picture} or \cmd{-{}-batch} macros (\cref{sec:g4view}).
+
 \problem{Cannot locate geometry DB 'ship\_geometry.db'; set SHIPGEOMETRY\_ROOT ...}
 \pkg{aegir} found the file neither in the directory you ran \cmd{phlex} from
 nor in the geometry search directory under \texttt{\$SHIPGEOMETRY\_ROOT}.  Run from \file{work/},
@@ -19,38 +40,50 @@ looked up in the current directory, then in
 A field \texttt{volume\_pattern} matches no volume in the geometry. Patterns
 are substrings of the \texttt{/SHiP/\ldots} names (\cref{sec:coordinates}).
 
+\problem{sensitive\_volumes entry \#n (counting from 0): ...}
+An entry of \texttt{sensitive\_volumes} has a bare pattern \pkg{aegir} has
+no detector for, an unknown detector name, or an unknown key
+(\cref{sec:sensitive}). Write it as \texttt{\{pattern: ..., detector: ...\}}
+with one of \texttt{UpstreamTagger}, \texttt{SurroundTagger},
+\texttt{StrawTubes}, \texttt{Calorimeter}, \texttt{TimingDetector}.
+
 \problem{No digitiser registered for detector ID n}
-The simulation's \texttt{sensitive\_volumes} list has more than five entries
-(\cref{sec:sensitive}). A wrong order within IDs 0--4 does not raise
-this error, so verify the mapping explicitly. Correct the list and re-simulate.
+The input holds hits that \pkg{Shannon} has no digitiser for, most often the
+scoring-plane hits (ID 100) of a stage-1 file. Digitise the muon sample
+(\file{muon\_gun.root}) or a replay, not the production.
 
-\problem{file\_source: '...' has no 'event\_header' field}
-The input has no weights; \pkg{aegir} uses 1.0 for every event. Fix the
-converter for weighted yields; use unweighted files only for explicitly
-labelled shape or interface checks.
+\problem{The replay has fewer hits than expected, or none}
+Check that the replay read \texttt{plane\_particles}, and that
+\texttt{events} is at most the number of entries of the stage-1 file: past
+its end, \texttt{file\_source} publishes empty events.
 
-\problem{AttributeError: ... has no attribute 'pdgCode'}
-Your environment has data model 0.6 or later, where members are snake\_case
-(\cref{app:datamodel}). Use the matching environment, or rename in the script.
+\problem{AttributeError: ... has no attribute 'pdg\_code'}
+Your environment has data model 0.5 or older, where members are camelCase
+(\cref{app:datamodel}). Use the tutorial environment, built against 0.6.
 
 \problem{Python crashes at the very end of a script (segmentation violation in RNTupleReader)}
 A known PyROOT teardown issue. End scripts with \texttt{sf.finish()} (or
 \texttt{sys.stdout.flush(); os.\_exit(0)}), as the booklet's scripts do.
 
-\problem{jsonnet: RUNTIME ERROR: undefined external variable: events}
-An \cmd{--ext-str} is missing from the \cmd{jsonnet} command. Run the
-\cmd{jsonnet} part alone to see what \cmd{phlex} would receive.
+\problem{jsonnet: RUNTIME ERROR: ... events (not bound, or missing argument)}
+A \cmd{--tla-code} or \cmd{--tla-str} argument is missing from the
+\cmd{jsonnet} command; numbers and booleans need \cmd{--tla-code}, file
+names \cmd{--tla-str}. Run the \cmd{jsonnet} part alone to see what
+\cmd{phlex} would receive.
 
 \problem{phlex: cannot find plugin ...}
 \texttt{PHLEX\_PLUGIN\_PATH} does not include the package's \file{build/}
-directory: you are not in that package's \cmd{pixi shell}, or the package is
-not built (\cmd{pixi run build}).
+directory: you are not in that package's \cmd{pixi cvmfs}, or the package is
+not built (\cmd{pixi cvmfs build}).
 
 \problem{The event display is empty or very slow}
-Check \cmd{--data} points to the simulation file, not the digitised one.
+Check \cmd{--data} points to a simulation file (\file{muon\_gun.root}),
+not the digitised one.
 For speed, use a geometry cache (\cref{ch:display}) and keep the dense
 subsystems excluded in the view file.
 
 \problem{The web display shows nothing}
-\cmd{pixi run web-data} must run before \cmd{pixi run web}, and the page needs
-internet access to load three.js.
+\cmd{pixi cvmfs web-data} must run before the page is served, and the page
+needs internet access to load three.js. If the browser cannot connect, check
+that the tunnel goes to the node and port that \cmd{hostname} and
+\cmd{echo \$PORT} printed (\cref{ch:display}).

@@ -1,0 +1,12 @@
+# picture.mac -- no window: save the geometry as a PNG (for ssh sessions).
+#   ship_g4view --batch calo_plane.db picture.mac
+
+/run/initialize
+/vis/open TSG_OFFSCREEN 1200x1200
+/vis/drawVolume
+/vis/geometry/set/visibility World 0 false
+/vis/viewer/set/style surface
+/vis/viewer/set/upVector 0 1 0
+/vis/viewer/set/viewpointThetaPhi 120 150 deg
+/vis/tsg/offscreen/set/file geometry.png
+/vis/viewer/rebuild

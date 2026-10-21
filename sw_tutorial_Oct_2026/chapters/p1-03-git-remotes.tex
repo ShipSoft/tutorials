@@ -23,7 +23,8 @@ git init --bare server.git              # a repository without a working tree
 git clone server.git alice
 git clone server.git bob                # (both warn: the repository is empty)
 cd alice
-echo "# Notes" > notes.md && git add notes.md
+vim notes.md                            # one line: # Notes
+git add notes.md
 git commit -m "docs: start the notes"
 git push -u origin main                 # Alice publishes main
 cd ../bob
@@ -32,9 +33,11 @@ git pull origin main                    # Bob gets it
 Now Bob starts work on a branch while Alice publishes more:
 \begin{shell}
 git switch -c bob-idea                  # in bob/
-echo "an idea" > idea.md && git add idea.md && git commit -m "docs: add an idea"
+vim idea.md                             # one line: an idea
+git add idea.md && git commit -m "docs: add an idea"
 cd ../alice
-echo "more" >> notes.md && git commit -am "docs: more notes" && git push
+vim notes.md                            # add a second line: more
+git commit -am "docs: more notes" && git push
 cd ../bob
 git fetch                               # download, change nothing
 git log --oneline --graph --all         # origin/main is ahead of Bob's base
@@ -102,13 +105,30 @@ git remote -v                                    # lists both
 In \cref{ex:localserver} there was one remote; with a fork, you fetch and pull
 from \texttt{upstream} and push to \texttt{origin}.
 
-\begin{note}
 GitHub accepts SSH (\texttt{git@github.com:\ldots}) or HTTPS
-(\texttt{https://github.com/\ldots}) addresses. SSH needs a key added to your
-GitHub account once; HTTPS needs a personal access token or the GitHub CLI
-(\cmd{gh auth login}) instead of a password. \tbd{which one the tutorial
-machines are set up for}
-\end{note}
+(\texttt{https://github.com/\ldots}) addresses. This booklet uses SSH, which
+needs a key on lxplus that your GitHub account knows.
+
+\begin{exercise}{An SSH key for GitHub, once}
+\label{ex:sshkey}
+On lxplus:
+\begin{shell}
+ssh-keygen -t ed25519 -C "your.name@cern.ch"   # accept the file name; choose a passphrase
+cat ~/.ssh/id_ed25519.pub                      # the public key: one line
+\end{shell}
+Copy that line into GitHub: \emph{Settings}, \emph{SSH and GPG keys},
+\emph{New SSH key}. Then check:
+\begin{shell}
+ssh -T git@github.com          # "Hi <you>! You've successfully authenticated"
+\end{shell}
+Only the \texttt{.pub} file ever leaves lxplus; the other one is your secret.
+\end{exercise}
+
+\begin{organisernote}
+Check once that outgoing SSH from lxplus to \texttt{github.com} works on the
+tutorial day. If it does not, use HTTPS addresses and \cmd{gh auth login}
+(the GitHub CLI, from a pixi environment) instead.
+\end{organisernote}
 
 \section{Pull requests the ShipSoft way}
 \label{sec:pullrequests}

@@ -1,9 +1,12 @@
-\chapter{Analysis from the files}
+\chapter{Analysis: muons in the detector}
 \label{ch:analysis}
 
 \chaptergoals{10 of 11 in Part~II.}
-{\cref{ch:aegir,ch:digitisation}: the simulated and digitised files; the Python of \cref{ch:team}.}
-{select HNL decays from the files, weight them correctly, turn efficiencies into yields, and measure momentum from the bending.}
+{\cref{ch:production,ch:aegir,ch:digitisation}: the three files; the Python of
+\cref{ch:team}.}
+{read aegir and Shannon files with your own Python, find out which
+detectors the muons reach, with honest uncertainties, see what the field does
+to them, and separate the two charges in the spectrometer.}
 
 There is no analysis framework to learn in this chapter. The files are
 RNTuples of plain structs, so a Python script with PyROOT can read them
@@ -11,14 +14,15 @@ directly, and that is what we do.
 
 \section{Reading the files}
 
-The pattern from \cref{ch:generator} is all you need: open a reader on the
+The pattern from \cref{ex:openfile} is all you need: open a reader on the
 RNTuple, create a typed \emph{view} per field, and call the view with an entry
 number to get that entry's value as a C++ object. The scripts in
-\file{code/analysis/} share three small helpers in \file{shipfiles.py}: a
-class that keeps readers and views together, the detector numbering, and the
-positions of the decay volume and the straw stations.
+\file{code/analysis/} share a few small helpers in \file{shipfiles.py}: a
+class that keeps readers and views together, the detector numbering, the
+positions of the decay volume and the straw stations, and the normalisation
+to protons on target.
 
-\codefile[linerange={36-63}]{Python}{code/analysis/shipfiles.py}
+\codefile[linerange={48-99},basicstyle=\ttfamily\footnotesize]{Python}{code/analysis/shipfiles.py}
 
 \begin{pitfall}
 Two habits of PyROOT with RNTuples are built into these helpers. A view
@@ -37,195 +41,303 @@ leave through \texttt{os.\_exit} after flushing their output
 \toprule
 Question & File \\
 \midrule
-generator truth: HNL mass, decay position, daughter momenta & input or simulation \\
-per event: which detectors did the daughters reach, was the veto silent & simulation \\
-weighted efficiencies and yields & simulation (carries the weights) \\
-detector response over all hits: resolutions, time distributions & digitisation \\
+what leaves the hadron absorber, per proton & production (\cref{ch:production}) \\
+per muon: which detectors did it reach & muon sample (\cref{ch:aegir}) \\
+per event: which detectors saw anything & muon sample \\
+detector response over all hits: resolutions, times & digitisation \\
 \bottomrule
 \end{tabularx}
 \end{center}
 
 The reason for the split is the shape of \pkg{Shannon}'s output
 (\cref{sec:digilayout}): a stream of time-stamped hits, as the detector will
-deliver, with no simulated-event number and no weights. Questions about one
-simulated event are therefore answered from the simulation file, using
-simulated hits as a stand-in for digitised ones. For the coarse station-count exercise, the position smearing is small.
-This does not establish equivalence for reconstructed tracks, vertex cuts,
+deliver, with no simulated-event number. Questions about one simulated event
+or one muon are therefore answered from the simulation file, using simulated
+hits as a stand-in for digitised ones. For counting which detectors were hit,
+the position smearing does not matter; it would for reconstructed tracks,
 timing or a realistic detector response.
 
-\section{The HNL analysis}
+\section{Your first analysis of an aegir file}
+\label{sec:firstsim}
 
-\file{code/analysis/hnl\_analysis.py} answers, event by event:
+An \pkg{aegir} file has one RNTuple, \texttt{events}, with one entry per
+simulated event and one field per collection (\cref{sec:filelayout}):
+\texttt{mc\_particles} (the generator record), \texttt{sim\_particles} (what
+Geant4 tracked) and \texttt{sim\_hits} (the energy deposits), all vectors
+of the classes of \cref{app:datamodel}. Particles and hits of the same event
+are linked by \field{track\_id}: a hit's \field{track\_id} is the
+\field{track\_id} of the \texttt{SimParticle} that made it, and a particle's
+\field{parent\_id} that of the particle that made it, 0 for a primary.
+\file{code/analysis/first\_sim.py} is a complete small analysis:
 
+\codefile[linerange={22-44},basicstyle=\ttfamily\footnotesize]{Python}{code/analysis/first_sim.py}
+
+\begin{exercise}{Run it, then make it yours}
+\label{ex:firstsim}
+In the \pkg{aegir} environment, in \file{work/}:
+\begin{shell}
+cp $CODE/analysis/first_sim.py .
+python first_sim.py muon_gun.root
+\end{shell}
 \begin{enumerate}
-  \item What does the generator record say? It requires a pion and a muon of opposite electric charge
-        with status~1, a shared status-2 mother and a common vertex, and fills the $\pi\mu$ invariant mass, the
-        decay position and the opening angle.
-  \item Where did the daughters go? It finds them among the Geant4 particles
-        (\field{parentId}~$=0$), and for each counts the straw stations in which
-        it left hits.
-  \item Was the veto silent? It counts UBT hits and sums the SBT energy
-        deposit.
-  \item How much did the magnet bend each daughter? From the mean $x$ of its
-        hits in stations 1--2 and 3--4 it computes the change of slope
-        $\Delta\theta_x$ across the magnet.
+  \item Which detector has the most hits, and how many hits does one muon
+        leave in it? What are the groups in \file{straw\_z.pdf}?
+  \item Open \file{first\_sim.py} in your editor and add a view of
+        \texttt{sim\_particles}. In each event find the primary muon
+        (\field{parent\_id}~0) and count the straw hits it made itself
+        (\field{track\_id} equal to its \field{track\_id}) and those of its
+        secondaries. What fraction of the straw hits is not from the muon?
+  \item Sum \field{energy\_deposit} per detector and divide by the number of
+        hits. Which detector has the largest deposit per hit, and why?
+  \item Optional: add a view of \texttt{mc\_particles} and compare the
+        muon's generated momentum with its momentum at its last straw hit
+        (\field{momentum} of the \texttt{SimHit}). How much did it lose on
+        the way?
 \end{enumerate}
+\end{exercise}
 
-It then applies these as a sequence of cuts, weighting every event with the
-EventCalc weight from \texttt{event\_header}, and prints the cut flow.
+\begin{solution}
+\begin{enumerate}
+  \item The straws: a muon crossing a station leaves a hit in every straw
+        layer it crosses, and there are four stations, which are the four
+        groups in $z$ (84.1, 86.1, 93.1 and 95.1\,m), each split into its
+        layers. In the dry run the SBT came second in hits although few
+        muons reach it: a muon in its liquid scintillator leaves a hit per
+        Geant4 step over metres.
+  \item In the loop over events:
+\begin{py}
+particles = reader.GetView["std::vector<SHiP::SimParticle>"]("sim_particles")
+mine = others = 0
+for i in range(reader.GetNEntries()):
+    muons = {p.track_id for p in particles(i) if p.parent_id == 0}
+    for h in hits(i):
+        if h.detector_id == sf.STRAWS:
+            if h.track_id in muons:
+                mine += 1
+            else:
+                others += 1
+print("fraction from secondaries:", others / (mine + others))
+\end{py}
+        A few per cent to some tens of per cent, from $\delta$-rays knocked out
+        of the straw walls and the gas. They are real hits for the tracker
+        and the reason a track fit has to tolerate extra hits.
+  \item The calorimeter and the SBT: a scintillator step deposits MeV, a
+        straw-gas step keV. The deposit per hit follows the density of the
+        sensitive material and the step length.
+  \item \texttt{mc\_particles} holds the muon as generated (status~1, one
+        per event). A muon of 10--100\,GeV loses some tens to a few hundred MeV
+        on the way, in the UBT, the vessel walls and the straws: a small
+        fraction of its momentum.
+\end{enumerate}
+\end{solution}
+
+\section{Your first analysis of a Shannon file}
+\label{sec:firstdigi}
+
+A \pkg{Shannon} file is laid out differently (\cref{sec:digilayout}): one
+RNTuple per hit collection, \texttt{ubt\_hits}, \texttt{sbt\_hits},
+\texttt{straw\_tubes\_hits}, \texttt{calorimeter\_hits},
+\texttt{timing\_detector\_hits}, with \emph{one entry per hit} and a single
+field, \texttt{hit}. Each hit type (\texttt{StrawTubesHit} and so on) holds a
+\texttt{RecHit} in \field{rec\_hit}: the smeared \field{position}, the
+\field{time} with its spill offset, \field{energy\_deposit}, and the truth
+links \field{track\_id} and \field{pdg\_code}. The file also carries the
+\texttt{sim\_hits} and \texttt{sim\_particles} it was made from.
+\file{code/analysis/first\_digi.py}:
+
+\codefile[linerange={21-58},basicstyle=\ttfamily\footnotesize]{Python}{code/analysis/first_digi.py}
+
+\begin{exercise}{Read the hit stream}
+\label{ex:firstdigi}
+In the \pkg{Shannon} environment, in \file{work/}:
+\begin{shell}
+cp $CODE/analysis/first_digi.py .
+python first_digi.py ft_digi.root
+\end{shell}
+\begin{enumerate}
+  \item Compare the number of hits per collection with the hits per
+        detector of \cref{ex:firstsim}. Why are they equal?
+  \item \file{straw\_t.pdf}: what sets the earliest time, and the width?
+        Digitise again with \cmd{--tla-code pot=100000} and
+        \cmd{--tla-str output=ft\_digi\_1e5}, and look again.
+  \item Open \file{first\_digi.py} in your editor and count the straw hits
+        whose \field{pdg\_code} is $\pm13$. Compare with question~2 of
+        \cref{ex:firstsim}.
+  \item Can you tell from this file which straw hits belong to the same
+        muon? What would you need?
+\end{enumerate}
+\end{exercise}
+
+\begin{solution}
+\begin{enumerate}
+  \item Today's digitisers turn every \texttt{SimHit} into exactly one hit
+        (\cref{ch:digitisation}); with thresholds or channel merging the
+        numbers would differ.
+  \item The muons start at $t=0$ at $z=27$\,m and fly at the speed of light,
+        so the straw stations are reached after $(84-27)\,\mathrm{m}/c
+        \approx 190$\,ns to $(95-27)\,\mathrm{m}/c \approx 227$\,ns; on top,
+        every event gets an offset within the spill window, 30\,ns for
+        \texttt{pot=1000}. With \texttt{pot=100000} the window is 3\,\textmu s
+        and the spectrum is nearly flat: the events are spread over a longer
+        time, as they would be in a real spill.
+  \item In the loop: \texttt{if abs(rec.pdg\_code) == 13: n\_mu += 1}. The
+        same fraction as from the simulation file: the truth links are
+        copied unchanged.
+  \item Not reliably: there is no event number, and \field{track\_id} is only
+        unique within one simulated event. With the small window of
+        \texttt{pot=1000} the times overlap; grouping hits by time, and
+        hits into tracks, is the job of reconstruction (\pkg{Trout}).
+\end{enumerate}
+\end{solution}
+
+\section{Fractions, not rates}
+
+The muon sample of \cref{ch:aegir} is artificial: 100 muons of one charge,
+flat in momentum, from one point at the back of the shield. What it can tell
+you is what \emph{fraction} of such muons reaches each detector, not how many
+muons per proton or per spill SHiP will see. Rates per proton come from the
+plane of \cref{ch:production} or from a replay of a real production
+(\cref{ex:ownreplay}); \file{muon\_background.py} normalises to protons only
+when you give it \cmd{--pot}.
+
+\begin{pitfall}
+A fraction $f$ measured on $N$ muons has a binomial uncertainty
+$\sqrt{f(1-f)/N}$: up to 5\,\% for $N=100$. Zero muons out of 100 means a
+fraction below about 3\,\% (at 95\,\% confidence), not zero. Quote it that
+way, and simulate more muons before reading anything into a small difference.
+\end{pitfall}
+
+\section{Where the muons end up}
+
+\file{code/analysis/muon\_background.py} looks at every primary muon (a
+\texttt{SimParticle} with \field{parent\_id}~$=0$ and $|\field{pdg\_code}|=13$)
+and finds the detectors in which \emph{the muon itself} left hits, and the
+straw stations it crossed. Separately, it counts the events with any hit in
+each detector, whoever made it: a muon that only passes close to a detector
+can still send secondaries into it.
 
 \begin{exercise}{Run the analysis}
-From your working directory:
+\label{ex:muonbackground}
+In the \pkg{aegir} environment, in \file{work/}:
 \begin{shell}
-python $CODE/analysis/hnl_analysis.py hnl_sim.root
+python $CODE/analysis/muon_background.py muon_gun.root
 \end{shell}
-Look at the printed cut flow and at the PDFs it writes
-(\file{hnl\_analysis\_*.pdf}).
+It prints two tables and writes three PDFs (\file{muon\_background\_*.pdf}).
 \begin{enumerate}
-  \item \file{\_mass.pdf}: why is the peak so narrow, and where is it?
-  \item \file{\_decay\_z.pdf}: describe the shape. How would it change for a
-        much shorter $c\tau$?
-  \item Which cut removes most of the weighted events? Look at
-        \file{\_n\_stations.pdf} and \file{\_opening.pdf} to find out why.
+  \item What fraction of the muons reaches the UBT, the straws, all four
+        straw stations, the timing detector and the calorimeter? Give each
+        with its uncertainty.
+  \item Which muons do not cross all four stations?
+  \item Compare the two tables: why can an event have hits in a detector
+        that its muon did not reach?
+  \item \file{\_p.pdf}: does the fraction reaching the straws depend on the
+        momentum?
+  \item \file{\_station1\_xy.pdf}: how large is the spot of the muons in
+        the first straw station, and does that agree with 20\,mrad over the
+        distance from $z=27$\,m?
 \end{enumerate}
 \end{exercise}
 
 \begin{checkpoint}
-A cut flow of seven lines whose first line counts all your simulated events,
-and eight PDFs.
+Two tables whose first line counts 100 primary muons, with a
+\texttt{fraction} column, and three PDFs.
 \end{checkpoint}
 
 \begin{solution}
 \begin{enumerate}
-  \item The mass is computed from the generator four-vectors, which conserve
-        energy and momentum exactly: the peak is a spike at the HNL mass of
-        the sample. The width a real analysis sees comes from the momentum
-        resolution of reconstruction.
-  \item For laboratory decay length $\beta\gamma c\tau$ large compared with the volume length, the
-        decay density is approximately uniform along it; the slope is the
-        exponential decay law, steeper for shorter $c\tau$, which piles decays
-        up at the upstream end. The EventCalc weights carry the
-        normalisation, which is why the histogram is filled with them.
-  \item Usually the station requirement: daughters at large angle leave the
-        spectrometer acceptance, and soft ones are swept out by the magnet
-        before stations 3 and 4.
+  \item Nearly all: at 20\,mrad or less the muons stay inside the decay
+        volume. In the dry run, 100\,\% reached the UBT, 97\,\% the straws,
+        95\,\% all four stations, the timing detector and the calorimeter,
+        each $\pm2\,\%$, and 5\,\% the SBT ($\pm2\,\%$).
+  \item The ones at the largest angles, which leave the acceptance before the
+        last stations or cross the vessel wall into the SBT. Compare
+        the 5\,\% that miss a station with the 5\,\% in the SBT: check in the
+        script whether they are the same muons.
+  \item Secondaries: a $\delta$-ray, a photon from bremsstrahlung or a hadron
+        from a muon-nucleus interaction reaches a detector the muon itself
+        misses. Such hits are why a veto has to be studied with the full
+        detector simulation, not with the muon trajectories alone.
+  \item Hardly, above a few GeV: the muons are too hard to be stopped, and
+        the field of the magnet moves the soft ones by centimetres to
+        decimetres only.
+  \item At most $0.02\times(84.07-27)\,\mathrm{m}\approx1.1$\,m from the
+        axis, and uniform in angle, so denser towards the centre.
 \end{enumerate}
 \end{solution}
 
-\begin{pitfall}
-The cut labelled ``decay in nominal z range'' checks only the longitudinal
-coordinate, not the helium volume or a fiducial margin. The UBT and SBT
-criteria also inherit the broad sensitive-volume selection. A full analysis
-needs a three-dimensional geometry check, active-material hit selection,
-reconstruction and background samples before quoting a sensitivity.
-\end{pitfall}
+\section{What the field does}
 
-\section{The veto}
+The spectrometer magnet between straw stations 2 and 3 bends the muons in the
+horizontal plane; the muon shield, behind which the gun starts, no longer acts
+on them. The sample without field (\cref{ex:nofield}) shows the difference.
 
-The SBT surrounds the decay volume to reject background from particles
-entering it from outside. Signal daughters should not touch it, but they can:
-a daughter emitted at a large angle, or a secondary from an interaction in the
-vessel or the first station, deposits energy in the LAB cells.
-
-\begin{exercise}{What does a tight veto cost?}
-\file{\_sbt\_edep.pdf} shows the SBT energy deposit per event. Rerun with
-different thresholds and record the signal efficiency of the
-``SBT below threshold'' line:
+\begin{exercise}{Field on, field off}
+If you made \file{muon\_gun\_nofield.root}, run the analysis on it too:
 \begin{shell}
-for t in 0 0.010 0.045 0.100; do
-  python $CODE/analysis/hnl_analysis.py hnl_sim.root --sbt-threshold $t | grep SBT
-done
+python $CODE/analysis/muon_background.py muon_gun_nofield.root \
+    --output nofield
 \end{shell}
-A threshold costs signal efficiency here, and buys background rejection in a
-background sample. Why is the background side of this trade-off not
-something you can study with this sample?
+Compare the two muon tables. Do the fractions change, within their
+uncertainties? Compare \file{muon\_background\_station1\_xy.pdf} with
+\file{nofield\_station1\_xy.pdf}: why do they look alike?
 \end{exercise}
 
 \begin{solution}
-The sample contains only signal. The rejection of a given threshold has to be
-measured on muon-induced and neutrino-induced background samples, simulated
-with the \texttt{fixed\_target\_source} or \texttt{genie\_reader\_source}
-plugins of \pkg{aegir}, which is a natural follow-up project.
+The fractions agree within their uncertainties: the field changes where a
+muon crosses stations 3 and 4 by centimetres to decimetres, small compared
+with the size of the detectors. Station~1 is upstream of the magnet, so its
+hit maps differ only by Geant4's randomness. The field does not decide
+\emph{whether} a muon is seen; it decides where, which is what measures its
+momentum and charge. \tbd{the two tables of the dry run}
 \end{solution}
 
-\section{Measuring momentum with the magnet}
-
-A charged particle crossing a dipole field changes direction by
-\[
-  \Delta\theta \approx \frac{0.3\,\int B\,\mathrm{d}l\;[\mathrm{T\,m}]}{p\;[\mathrm{GeV}]},
-\]
-for a singly charged, forward track in the small-angle limit. Thus
-$p\,|\Delta\theta_x|$ is approximately constant only for similar sampled
-field integrals and negligible energy loss and scattering.
-\file{\_p\_kick.pdf} plots it with the true momentum $p$ and the
-$\Delta\theta_x$ measured from the simulated straw hits.
-
-\begin{exercise}{The field integral from the hits}
-Read the position of the peak in \file{\_p\_kick.pdf} and convert it to
-$\int B\,\mathrm{d}l$. Compare with your estimate from the field map in
-\cref{sec:fieldservice}. If you simulated without field in \cref{ch:aegir},
-run the analysis on that file too: where is the peak now?
+\begin{exercise}[colback=white]{Optional: the two charges}
+With the $\mu^+$ sample of \cref{ex:mup}: for every muon that crosses all
+four straw stations, take the mean $x$ and $z$ of its hits in each station
+and compute the change of its slope in $x$ across the magnet,
+$\Delta\theta_x = \frac{x_4-x_3}{z_4-z_3} - \frac{x_2-x_1}{z_2-z_1}$.
+Histogram it separately for $\mu^+$ and $\mu^-$. Do the two charges go to
+opposite sides? Repeat on the sample without field.
 \end{exercise}
 
 \begin{solution}
-The peak is at $0.3\int B_y\,\mathrm{d}z$ in GeV\,rad, e.g.\ \tbd{value for
-the tutorial map}; the distribution is broadened by varying paths, scattering and energy
-loss; primary-track matching excludes secondary hits from this estimator. Without field
-the peak sits at zero, broadened by scattering and the finite sampling of the trajectory. Turning this
-around, $p = 0.3\int B\,\mathrm{d}l / |\Delta\theta|$ is the momentum
-measurement reconstruction makes, with a fitted track instead of mean hit
-positions.
-\end{solution}
-
-\section{Yields}
-
-The weights carry the probability of each decay; the absolute normalisation is
-EventCalc's expected number of decays $N_\mathrm{exp}$
-(\cref{ch:generator}). Provided its exposure, channel selection and sampled phase space match
-the input (with no omitted acceptance), it converts each weighted cut-flow
-fraction into a teaching yield estimate:
+A solution is \file{code/analysis/solutions/spectrometer\_charge.py}:
 \begin{shell}
-python $CODE/analysis/hnl_analysis.py hnl_sim.root --n-expected <N_exp>
+python $CODE/analysis/solutions/spectrometer_charge.py \
+    muon_gun.root muon_gun_mup.root
+python $CODE/analysis/solutions/spectrometer_charge.py \
+    muon_gun_nofield.root --output nofield
 \end{shell}
-
-\begin{exercise}{How many would SHiP see?}
-Take $N_\mathrm{exp}$ for the sample from \tbd{where the converter or the
-organisers provide it} and compute the expected number of selected
-$\HNL\to\pi\mu$ decays. Which of the selection steps here would a real analysis
-replace, and with what?
-\end{exercise}
-
-\begin{solution}
-Truth-level and simulated-hit requirements stand in for reconstruction: the
-station requirement becomes ``two reconstructed tracks with a good fit'', the
-decay-volume cut a fiducial cut on the \emph{reconstructed} vertex, and the
-analysis adds a cut on the impact parameter of the HNL candidate with respect
-to the target, the invariant mass, muon identification and timing coincidence.
-All of these need \pkg{Trout}.
+With field the two distributions lie on opposite sides of zero, and the kink
+falls with momentum as $\Delta\theta_x \approx 0.3\int B\,\mathrm{d}l / p$
+(\cref{ch:services}), so the soft muons give the largest kinks. Without field
+the distribution is centred on zero, with the width that multiple scattering
+gives.
 \end{solution}
 
 \section{Going further}
 
-\begin{exercise}[colback=white]{Optional: a vertex without reconstruction}
-Upstream of the magnet, straight lines approximate the daughter trajectories;
-material scattering and energy loss still matter. For each daughter,
-take the mean position of its simulated straw hits in stations 1 and 2,
-extrapolate the line back into the decay volume, and find the point of
-closest approach of the two lines. Histogram its distance from the true decay
-vertex in $x$ and $z$. Why is the resolution so much worse in $z$ than in
-$x$, and how does it depend on the opening angle?
-\end{exercise}
-
-\begin{solution}
-A solution is in \file{code/analysis/solutions/vertex\_from\_hits.py}. The
-lines meet at a small angle, so an error in their transverse position becomes
-an error in $z$ larger by roughly the inverse opening angle; small-angle
-decays (light, fast HNLs) have the worst $z$ resolution.
-\end{solution}
-
 \begin{exercise}[colback=white]{Optional: from a hit stream back to events}
-Using the digitised file, histogram the times of all straw hits. Could you
+Using the digitised file, histogram the times of all SBT hits. Could you
 separate the simulated events by time? What would the digitisation have to
 record so that a Monte Carlo study can connect digitised hits to the
 simulated event they came from? Bring your answer to the closing discussion.
 \end{exercise}
+
+\begin{exercise}[colback=white]{Optional: more muons}
+Simulate 1000 muons with another seed and another \texttt{output} name
+(\cmd{--tla-code events=1000 --tla-code seed=2}) and run the analysis on
+them. How do the fractions and their uncertainties change? How many protons
+on target would it take to get 1000 muons behind the shield from the real
+production of \cref{ch:production}?
+\end{exercise}
+
+\begin{solution}
+The fractions agree with the 100-muon sample within its uncertainties, and
+the uncertainties shrink by $\sqrt{10}$. For the protons: the muons per proton
+at the plane from \cref{ex:planesummary}, times the fraction that gets
+through the shield (\cref{ex:ownreplay}), gives the muons behind the shield
+per proton; 1000 divided by it is the number of protons, which is why SHiP's
+background studies use dedicated large productions, with event weights and
+biasing.
+\end{solution}

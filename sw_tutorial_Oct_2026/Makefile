@@ -44,7 +44,9 @@ participant-archive: booklet.pdf
 	cd .. && tar -czf framework-booklet-participant.tar.gz \
 	  --exclude='framework-booklet/.git' \
 	  --exclude='framework-booklet/code/teamwork/organiser' \
+	  --exclude='framework-booklet/code/geometry/organiser' \
 	  --exclude='framework-booklet/tests' \
+	  --exclude='framework-booklet/tools' \
 	  --exclude='framework-booklet/booklet-organiser.*' \
 	  --exclude='framework-booklet/REVIEW.md' \
 	  --exclude='*.aux' --exclude='*.log' --exclude='*.fls' --exclude='*.fdb_latexmk' \

@@ -6,8 +6,8 @@
 Entries of an aegir file are in the order events finished, not in event
 order, so events are matched by their `event_number` field.
 
-    python sim_summary.py hnl_sim.root                      # totals
-    python sim_summary.py hnl_sim.root hnl_sim_run2.root    # compare
+    python sim_summary.py ft_replay.root                    # totals
+    python sim_summary.py ft_replay.root ft_replay_run2.root  # compare
 """
 
 import argparse
@@ -24,7 +24,7 @@ def summarise(path):
     out = {}
     for i in f.entries():
         hits = f["sim_hits"](i)
-        edep = sum(h.energyDeposit for h in hits)
+        edep = sum(h.energy_deposit for h in hits)
         zsum = sum(h.position[2] for h in hits)
         event_id = int(f["event_number"](i))
         if event_id in out:

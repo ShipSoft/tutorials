@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: 2026 CERN for the benefit of the SHiP Collaboration
+# SPDX-License-Identifier: LGPL-3.0-or-later
+#
+# Geometry tutorial (chapter "The detector description").
+#   pixi cvmfs plane          build calo_plane.db from scratch with GeoModel
+#   pixi cvmfs view           look at it in the Geant4 window
+#   pixi cvmfs check          volume tree, mass and overlap test, no window
+#   pixi cvmfs view ship.mac  look at one SHiP subsystem
+
+[workspace]
+name = "ship-geometry-tutorial"
+channels = ["https://prefix.dev/ship-experiment/stable", "conda-forge"]
+platforms = ["linux-64"]
+requires-pixi = ">=0.68"
+
+[dependencies]
+# GeoModel (geomodel-core, -io, -g4) and Geant4 with its Qt/OpenGL viewer
+geomodel = ">=6.30"
+geant4 = ">=11.3"
+# The SHiP geometry service converts a .db file to Geant4, as in aegir.
+shipgeometryservice = ">=0.6,<0.7"
+shipgeometry = "*"
+# Needed by the CMake configs of Geant4 (expat, zlib, freetype) and GeoModel
+# (eigen, nlohmann_json, mp-units), as in geometry_service/pixi.toml
+mp-units = "*"
+expat = "*"
+zlib = "*"
+freetype = "*"
+eigen = "*"
+eigen-abi-devel = "*"
+nlohmann_json = "*"
+cxx-compiler = "*"
+cmake = ">=3.24"
+ninja = "*"
+
+[tasks]
+configure = """
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+"""
+build = { cmd = "cmake --build build", depends-on = ["configure"] }
+plane = { cmd = "./build/build_calo_plane calo_plane.db", depends-on = ["build"] }
+view = { cmd = "./build/ship_g4view {{ geometry }}", args = [
+    { arg = "geometry", default = "calo_plane.mac" },
+], depends-on = ["plane"] }
+check = { cmd = "./build/ship_g4view --batch calo_plane.db check_plane.mac", depends-on = ["plane"] }
+picture = { cmd = "./build/ship_g4view --batch calo_plane.db picture.mac", depends-on = ["plane"] }

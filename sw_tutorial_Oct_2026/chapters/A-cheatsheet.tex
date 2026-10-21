@@ -1,102 +1,139 @@
 \chapter{Command reference}
 \label{app:cheatsheet}
+\begingroup
+\lstset{basicstyle=\ttfamily\footnotesize}
 
 Commands assume the environment of the package named in the heading
-(\cmd{pixi shell} in its checkout), \file{work/} as the current directory
-except Geometry build commands, which run in its checkout, and \texttt{\$CODE} pointing to
+(\cmd{pixi cvmfs} in its checkout), \file{work/} as the current directory
+except Geometry build commands, which run in its checkout, and the geometry
+tutorial commands, which run in \file{\$SHIP\_TUTORIAL/geometry-tutorial};
+\texttt{\$CODE} points to
 \file{framework-booklet/code} in the supplied archive.
 
 \section*{git \hfill\normalfont\small(\cref{ch:git,ch:branches,ch:remotes}; full table in \cref{sec:gitcheatsheet})}
 \begin{shell}
-git switch main && git pull upstream main         # start from the latest main
-git switch -c task-NN-description                 # one branch per change
+git switch main && git pull upstream main       # start from the latest main
+git switch -c task-NN-description               # one branch per change
 git add FILE && git commit -m "feat(scope): summary"
-git push -u origin task-NN-description            # then open the pull request
-git fetch upstream && git rebase upstream/main    # PR out of date
-git push --force-with-lease                       # after a rebase (your branch only)
+git push -u origin task-NN-description          # then open the pull request
+git fetch upstream && git rebase upstream/main  # PR out of date
+git push --force-with-lease                     # after a rebase (your branch only)
 \end{shell}
 
 \section*{pixi \hfill\normalfont\small(\cref{ch:pixi})}
-\begin{shell}
-pixi init && pixi add python "root_base>=6.36"    # a new workspace
-pixi install [--locked]                           # create the environment [exactly as locked]
-pixi run <task or command>                        # one command in the environment
-pixi shell                                        # an interactive shell in it; exit to leave
-pixi task add <name> "<command>"                  # name a command
-pixi run -e lint lint                             # a task in another environment
-pixi update                                       # newer versions: commit the new pixi.lock
+\begin{shell}[basicstyle=\ttfamily\scriptsize]
+# once, in ~/.bashrc (exercise 4.1):
+export PATH=/cvmfs/ship-nightlies.cern.ch/pixi/0.72.0-rattlerfs-layers-d5a7568/bin:$PATH
 \end{shell}
+\begin{shell}
+# a new workspace:
+pixi init && pixi add --no-install python ruff
+pixi cvmfs <task or command>      # one command in the environment
+pixi cvmfs                        # a shell in the environment; exit to leave
+pixi task add <name> "<command>"  # name a command
+pixi lock                         # after editing pixi.toml: commit both
+pixi update --no-install          # newer versions: commit the new pixi.lock
+pixi clean                        # remove a .pixi/ installed by mistake
+fs lq ~                           # AFS quota and usage
+\end{shell}
+On lxplus, never \cmd{pixi run}, \cmd{pixi shell} or \cmd{pixi install}:
+they install into \file{.pixi/} on AFS.
 
 \section*{CI \hfill\normalfont\small(\cref{ch:ci})}
 \begin{shell}
-pixi run --locked <task>                          # reproduce a CI step locally
-pixi run lint                                     # what "Lint passed" checks, before you push
+pixi cvmfs <task>  # what CI runs as: pixi run --locked <task>
+pixi cvmfs lint    # what "Lint passed" checks, before you push
 \end{shell}
 
 \section*{Team analysis \hfill\normalfont\small(\cref{ch:team}, in the team repository)}
 \begin{shell}
-pixi run check-task NN                            # test your task alone
-pixi run check                                    # test every task (as CI does)
-pixi run analysis                                 # run the chain as far as it goes
+pixi cvmfs check-task NN  # test your task alone
+pixi cvmfs check          # test every task (as CI does)
+pixi cvmfs analysis       # run the chain as far as it goes
 \end{shell}
 
 \section*{Geometry \hfill\normalfont\small(\repo{Geometry})}
 \begin{shell}
-pixi run geometry                                 # -> build/ship_geometry.db
-pixi run ./build/apps/validate_geometry build/ship_geometry.db
-pixi run gmex build/ship_geometry.db                             # interactive viewer
-pixi run gdml                                     # -> build/ship_geometry.gdml
+pixi cvmfs geometry                                   # -> build/ship_geometry.db
+pixi cvmfs ./build/apps/validate_geometry build/ship_geometry.db
+pixi cvmfs gdml                                       # -> build/ship_geometry.gdml
+pixi cvmfs ./build/apps/build_geometry --list         # the subsystem names
+pixi cvmfs ./build/apps/build_geometry --standalone NAME -o NAME.db
 \end{shell}
+
+\section*{Geometry tutorial and viewer \hfill\normalfont\small(\file{\$CODE/geometry})}
+\begin{shell}
+pixi cvmfs plane                       # -> calo_plane.db (GeoModel from scratch)
+pixi cvmfs view [file.db | macro.mac]  # Geant4 window; default calo_plane.mac
+pixi cvmfs check                       # tree, mass, overlaps; no window
+pixi cvmfs picture                     # -> geometry.png; no window
+pixi cvmfs view ship.mac               # SHiP, one subsystem at a time
+\end{shell}
+In the viewer: \cmd{/ship/geometry/open F.db} (before \cmd{/run/initialize}),
+\cmd{/vis/drawVolume NAME}, \cmd{/vis/scene/add/volume NAME},
+\cmd{/vis/drawTree NAME}, \cmd{/geometry/test/run}, \cmd{/gun/particle P},
+\cmd{/run/beamOn N}.
 
 \section*{Field maps \hfill\normalfont\small(\repo{field\_service})}
 \begin{shell}
-fieldmap_dump MAP.root                            # metadata
-echo "0 0 0" | fieldmap_dump MAP.root NAME        # evaluate at points (mm -> T)
-plot_field_map MAP.root NAME plots.root           # B_y plots, ROOT + PDF
+fieldmap_dump MAP.root                      # metadata
+echo "0 0 0" | fieldmap_dump MAP.root NAME  # evaluate at points (mm -> T)
+plot_field_map MAP.root NAME plots.root     # B_y plots, ROOT + PDF
 generate_constant_fieldmap OUT.root NAME Bx By Bz xmin xmax ymin ymax zmin zmax
 fairship_to_fieldmap [--symmetry quadrant_dipole] IN.root OUT.root
 \end{shell}
 
-\section*{Input check}
-Use the frozen PyROOT/data-model environment.
-\begin{shell}
-python $CODE/analysis/check_input.py hnl_events.root
-\end{shell}
-
 \section*{Simulation \hfill\normalfont\small(\repo{aegir})}
 \begin{shell}
-phlex -j 4 -c <(jsonnet --ext-str events=N --ext-str infile=hnl_events.root \
-    --ext-str simout=hnl_sim.root --ext-str histo=hnl_sim_validation.root \
-    [--tla-code seed=S] $CODE/workflows/hnl_sim.jsonnet)
-python $CODE/analysis/sim_summary.py hnl_sim.root [other.root]
+POT=1000                                 # protons on target, stage 1
+phlex -j 4 -c <(jsonnet --tla-code events=$POT --tla-code seed=42 \
+    [--tla-code ecut=0.5] [--tla-str output=ft_production] \
+    $CODE/workflows/ft_production.jsonnet)
+python $CODE/analysis/plane_summary.py ft_production.root --pot $POT
+phlex -j 4 -c <(jsonnet [--tla-code events=100] [--tla-code pdg=-13] \
+    [--tla-code seed=42] [--tla-code field=false] [--tla-str output=muon_gun] \
+    $CODE/workflows/muon_gun.jsonnet)       # artificial muons from z = 27 m
+python $CODE/analysis/sim_summary.py muon_gun.root [other.root]
+N=$(python "$SHIP_TUTORIAL/aegir/scripts/count_entries.py" \
+      ft_production.root)                  # optional: replay stage 1
+phlex -j 4 -c <(jsonnet --tla-str infile=ft_production.root --tla-code events=$N \
+    $CODE/workflows/ft_replay.jsonnet)
 \end{shell}
 
 \section*{Event display \hfill\normalfont\small(\repo{sea-cucumber}, run in its checkout)}
 \begin{shell}
-pixi run sc --geometry DB --data hnl_sim.root --view views/default.toml --event I
-pixi run sc --geometry DB --inspect 4 [--inspect-match "*trackers*"]
-pixi run geo-cache --geometry DB --view views/default.toml
-pixi run web-data --geometry DB --data hnl_sim.root --view views/default.toml --events all
-pixi run web                                      # http://localhost:8080
+pixi cvmfs run --geometry DB --data muon_gun.root --view views/default.toml --event I
+pixi cvmfs run --geometry DB --inspect 4 [--inspect-match "*trackers*"]
+pixi cvmfs geo-cache --geometry DB --view views/default.toml
+pixi cvmfs web-data --geometry DB --data muon_gun.root --view views/default.toml \
+                    --events all
+PORT=$((8000 + $(id -u) % 1000)); hostname; echo $PORT
+pixi cvmfs python -m http.server $PORT --bind 127.0.0.1 --directory web
+# on your own machine, then open http://localhost:8080:
+ssh -N -L 8080:localhost:<PORT> <you>@lxplusNNN.cern.ch
 \end{shell}
 
 \section*{Digitisation \hfill\normalfont\small(\repo{Shannon})}
 \begin{shell}
-phlex -j 4 -c <(jsonnet --ext-str entries=N --ext-str infile=hnl_sim.root \
-    --ext-str digiout=hnl_digi.root --ext-str histo=hnl_digi_validation.root \
-    $CODE/workflows/hnl_digi.jsonnet)
-python $CODE/analysis/digi_residuals.py hnl_digi.root --collection straw_tubes_hits
+phlex -j 4 -c <(jsonnet --tla-str infile=muon_gun.root --tla-code entries=100 \
+    --tla-code pot=1000 [--tla-str output=ft_digi] $CODE/workflows/ft_digi.jsonnet)
+python $CODE/analysis/digi_residuals.py ft_digi.root --collection straw_tubes_hits
 \end{shell}
 
 \section*{Analysis}
 \begin{shell}
-python $CODE/analysis/hnl_analysis.py hnl_sim.root [--n-expected N] [--sbt-threshold GeV]
-python $CODE/analysis/solutions/vertex_from_hits.py hnl_sim.root
+cp $CODE/analysis/first_sim.py $CODE/analysis/first_digi.py .   # to extend
+python first_sim.py muon_gun.root          # hits per detector (aegir file)
+python first_digi.py ft_digi.root          # hits per collection (Shannon file)
+python $CODE/analysis/muon_background.py muon_gun.root [--output PREFIX]
+python $CODE/analysis/muon_background.py ft_replay.root --pot $POT   # a replay
+python $CODE/analysis/solutions/spectrometer_charge.py muon_gun.root muon_gun_mup.root
 \end{shell}
 
 \section*{Looking inside any file}
 \begin{py}
 import ROOT
-r = ROOT.RNTupleReader.Open("events", "hnl_sim.root")   # or "straw_tubes_hits", ...
+r = ROOT.RNTupleReader.Open("events", "muon_gun.root")    # or "straw_tubes_hits", ...
 r.PrintInfo(); r.Show(0)
 \end{py}
+\endgroup

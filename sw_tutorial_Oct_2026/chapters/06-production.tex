@@ -1,0 +1,274 @@
+\chapter{Fixed-target production}
+\label{ch:production}
+
+\chaptergoals{6 of 11 in Part~II: the first simulation.}
+{\cref{ch:geometry} (\file{ship\_geometry.db} in \file{work/}) and
+\cref{ch:datamodel}.}
+{generate proton--tungsten collisions with \pkg{aegir}, record what leaves the
+hadron absorber on a scoring plane, normalise counts to protons on target, and
+look inside the file you made.}
+
+\section{What aegir is}
+
+\repo{aegir} is the SHiP simulation: a set of Phlex plugins that generate or
+read particles, transport them through the detector with Geant4, and write
+the result. A simulation job is a graph of four kinds of node:
+
+\begin{center}
+\begin{tikzpicture}[
+  every node/.style={font=\sffamily\small},
+  box/.style={draw=shipnavy,fill=codebg,rounded corners=2pt,
+    text width=35mm,minimum height=12mm,align=center},
+  job/.style={box,draw=shipblue,fill=shipblue!6,text width=55mm},
+  flow/.style={-{Stealth[length=2mm]},line width=0.7pt},
+  uses/.style={flow,dashed,color=shipblue}]
+  \node[box] (src) at (0,0) {source\\\scriptsize\texttt{fixed\_target\_source}};
+  \node[box] (g4) at (5.2,0) {transform\\\scriptsize\texttt{geant4\_module}};
+  \node[box] (out) at (10.4,0) {observer\\\scriptsize\texttt{sim\_output\_module}};
+  \node[job] (geo) at (2.1,2.4) {job provider\\\scriptsize\texttt{geometry\_geomodel\_provider}};
+  \node[job] (fld) at (8.4,2.4) {job provider\\\scriptsize\texttt{field\_null\_provider}};
+  \draw[flow] (src) -- node[above,font=\scriptsize]{particles} (g4);
+  \draw[flow] (g4) -- node[above,font=\scriptsize]{sim\_result} (out);
+  \draw[uses] (geo.south) -- ([xshift=-7mm]g4.north);
+  \draw[uses] (fld.south) -- ([xshift=7mm]g4.north);
+  \draw[flow] (src.south) -- ++(0,-0.8) -|
+    node[pos=0.25,below,font=\scriptsize]{generator record + event header} (out.south);
+\end{tikzpicture}
+\end{center}
+
+Sources work per event; the geometry and the field are providers at the job
+level, built once and shared by all events. The plugins available are:
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{l l L}
+\toprule
+Plugin & Kind & Purpose \\
+\midrule
+\texttt{particle\_gun\_source}       & source   & single particles in a cone \\
+\texttt{pythia8\_source}             & source   & Pythia\,8 fixed-target p--p collisions \\
+\texttt{fixed\_target\_source}       & source   & \textbf{Pythia\,8 on tungsten, with the interaction point sampled in the target (stage 1)} \\
+\texttt{genie\_reader\_source}       & source   & pre-generated GENIE neutrino interactions \\
+\texttt{file\_source}                & source   & \textbf{particles read from a data-model file (stage 2)} \\
+\texttt{geometry\_builtin\_provider} & provider & a test geometry (tungsten block and silicon planes) \\
+\texttt{geometry\_gdml\_provider}    & provider & geometry from a GDML file \\
+\texttt{geometry\_geomodel\_provider}& provider & \textbf{the SHiP geometry via the geometry service} \\
+\texttt{field\_null\_provider}       & provider & no field \\
+\texttt{field\_map\_provider}        & provider & field maps via the field service \\
+\texttt{geant4\_module}              & transform& Geant4 transport, multi-threaded \\
+\texttt{sim\_output\_module}         & observer & RNTuple output and validation histograms \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Protons on tungsten}
+
+\texttt{fixed\_target\_source} generates one 400\,GeV proton interaction per
+event. Tungsten has 74 protons and 110 neutrons, so it runs two Pythia\,8
+instances, one for p--p and one for p--n collisions, and picks one in that
+proportion. The interaction point is drawn along the target from the
+exponential law with the interaction length of tungsten, 19.2\,cm, between
+$z=0$ and the end of the target at 1.164\,m. Pythia decays only particles
+whose proper decay length $c\tau_0$ is below a threshold (1\,mm); everything
+longer-lived, pions and kaons included, is handed to Geant4, which then
+decides whether it decays or interacts in the tungsten.
+
+Only the status-1 entries of the generator record are tracked
+(\cref{sec:mcstatus}); with \texttt{record: 'final\_state'} these are the only
+entries written.
+
+\section{The scoring plane}
+\label{sec:scoringplane}
+
+Simulating every proton through the whole of SHiP would be wasteful: nearly
+all particles stop in the target or in the hadron absorber, 2.3\,m of iron
+behind it. Stage~1 therefore stops at a \emph{scoring plane} 1\,cm behind the
+absorber, at $z\approx4.36$\,m, in the gap before the first muon-shield
+magnet. The plane is the one FairShip calls \texttt{exitHadronAbsorber}:
+7.12\,m wide and 3.40\,m high, wider than the muon shield itself, so that it
+also catches what passes beside it.
+
+\begin{description}[style=nextline]
+  \item[It lives in a parallel world.] The plane is not part of the SHiP
+    geometry; Geant4 overlays it, so it can cut through any volume and
+    nothing in \file{ship\_geometry.db} has to change.
+  \item[It records everything.] Every track that reaches it, charged or
+    neutral, deposits energy or not, becomes one \texttt{SimHit} with
+    \field{detector\_id}~100 and the plane's id in \field{geometry\_node\_id}.
+  \item[It kills.] With \texttt{kill: true}, a track is stopped at the plane,
+    so the job ends there.
+  \item[It hands over to stage 2.] With \texttt{record\_particles: true}, the
+    tracks it records going downstream are also written as
+    \texttt{plane\_particles}: as they were when they entered the plane, with
+    their ancestry. SHiP's stage~2 simulates them onwards from there; you
+    can try it in \cref{ex:ownreplay}.
+\end{description}
+
+Tracks with less kinetic energy than the cut \texttt{ecut} (0.5\,GeV, as in
+FairShip) are killed wherever they are: they cannot reach the decay volume
+anyway. Of the tracked particles only those that reach the plane and their
+ancestors are written (\texttt{keep\_particles: 'hit\_ancestry'}), and events
+in which nothing reached the plane are not written at all
+(\texttt{filter\_empty}).
+
+\section{The workflow}
+
+The workflow for this stage is \file{code/workflows/ft\_production.jsonnet}.
+It is the job of \pkg{aegir}'s \file{workflows/fixed\_target\_production.jsonnet}
+with every building block written out, so that you can read the whole job in
+one place:
+
+\codefile[linerange={20-111},basicstyle=\ttfamily\footnotesize]{jsonnet}{code/workflows/ft_production.jsonnet}
+
+\begin{exercise}{Read before you run}
+From the workflow alone: which detector volumes are sensitive in this stage?
+Which tracks are killed, and where? Which file will hold the result, and
+which seed is used if you do not give one?
+\end{exercise}
+
+\begin{solution}
+None: \texttt{sensitive\_volumes} is empty, and only the scoring plane records
+hits. Tracks below 0.5\,GeV kinetic energy are killed anywhere; every track
+reaching the plane is killed there. \file{ft\_production.root}, with the
+validation histograms in \file{ft\_production\_validation.root}; seed~42.
+\end{solution}
+
+\section{Running it}
+
+\begin{exercise}{Your first protons on target}
+\label{ex:production}
+Open a shell in the \pkg{aegir} environment and go to your working
+directory, which must contain \file{ship\_geometry.db} (\cref{ch:geometry}):
+\begin{shell}
+cd "$SHIP_TUTORIAL/aegir"
+pixi cvmfs
+cd "$SHIP_TUTORIAL/work"
+POT=1000                         # protons on target for this tutorial
+time phlex -j 4 -c <(jsonnet --tla-code events=$POT --tla-code seed=42 \
+    $CODE/workflows/ft_production.jsonnet)
+\end{shell}
+Watch the log: the geometry is read and converted, the plane is placed behind
+\texttt{/SHiP/muon\_shield/magn\_absorb}, the seeds are printed, and the event
+loop reports progress every 100 events. Keep the value of \texttt{POT}: every
+normalisation from now on needs it.
+\end{exercise}
+
+\begin{organisernote}
+In the dry run on lxplus (21 October 2026), 1000 protons took 256\,s with
+\cmd{-j 4}, about 100\,s of it start-up. That many
+protons give only a handful of muons at the plane, which is why
+\cref{ch:aegir} continues with an artificial muon sample.
+\end{organisernote}
+
+\begin{checkpoint}
+Two new files, \file{ft\_production.root} and
+\file{ft\_production\_validation.root}, and no error. The file holds
+\emph{fewer} entries than \texttt{POT}: only the events in which something
+reached the plane.
+\end{checkpoint}
+
+\begin{exercise}{Look inside the file}
+\label{ex:openfile}
+Still in the \pkg{aegir} environment, start Python:
+\begin{py}
+import ROOT
+reader = ROOT.RNTupleReader.Open("events", "ft_production.root")
+reader.PrintInfo()     # fields, types, number of entries, compression
+reader.Show(0)         # the first entry, as JSON
+\end{py}
+Which fields does the file have (compare with \cref{sec:filelayout})? In the
+first entry, how many generator particles are there, and how many hits? What
+is the \field{detector\_id} of the hits?
+\end{exercise}
+
+\begin{solution}
+The six fields of the simulation output: \texttt{event\_number},
+\texttt{event\_header}, \texttt{mc\_particles}, \texttt{sim\_hits},
+\texttt{sim\_particles}, \texttt{plane\_particles}. A p--W interaction gives
+some tens of final-state particles in \texttt{mc\_particles}. The hits are
+all plane hits, \field{detector\_id}~100 with \field{geometry\_node\_id}~1,
+one per track reaching the plane, and there are as many status-1
+\texttt{plane\_particles}, plus their ancestors with other statuses.
+\end{solution}
+
+\section{What leaves the absorber}
+
+\file{code/analysis/plane\_summary.py} reads the plane hits, counts them by
+particle type, and normalises the counts to the protons you simulated, per
+proton and per spill of $4\times10^{13}$ protons:
+
+\begin{exercise}{Count what reaches the plane}
+\label{ex:planesummary}
+\begin{shell}
+python $CODE/analysis/plane_summary.py ft_production.root --pot $POT
+\end{shell}
+It prints a table and writes three PDFs: the muon momentum and transverse
+momentum, and where the muons cross the plane.
+\begin{enumerate}
+  \item Which particles reach the plane, and which are most numerous?
+  \item How many muons per proton on target, and per spill? Are there more
+        $\mu^+$ or $\mu^-$, and why?
+  \item Look at \file{plane\_muon\_p.pdf}: where are most muons, and how far
+        does the spectrum reach?
+  \item Why does the file need \cmd{--pot}, rather than counting its entries?
+\end{enumerate}
+\end{exercise}
+
+\begin{solution}
+\begin{enumerate}
+  \item Neutrinos dominate, then neutrons and muons: the pion and kaon
+        decays that make the muons make the neutrinos too, and nothing stops
+        the neutrinos. In the dry run (seed 42), 31 of the 1000 protons left
+        something at the plane: 23 neutrinos, 5 neutrons and 3 muons.
+  \item In the dry run, 3 muons in 1000 protons, $3\times10^{-3}$ per proton
+        or about $10^{11}$ per spill, the flux the muon shield has to deal
+        with. With three muons the uncertainty is about 60\,\%. Expect more
+        $\mu^+$ than $\mu^-$ in a large sample: the beam and the target carry
+        positive charge, so positive pions and kaons, and their decay muons,
+        are more numerous than negative ones. The dry run had one $\mu^+$ and
+        two $\mu^-$, which says nothing either way.
+  \item Most muons have a few GeV, just above the cut; the spectrum falls
+        steeply and reaches some hundred GeV. With a small sample the tail is
+        empty: that is a statistics effect, not a cut.
+  \item The output holds only events with something at the plane
+        (\texttt{filter\_empty}); the protons whose products all stopped are
+        not in the file, but they are part of the normalisation.
+\end{enumerate}
+\end{solution}
+
+\begin{exercise}{The validation histograms}
+\pkg{aegir} fills histograms as it runs. Open them with a ROOT browser:
+\begin{shell}
+root -l ft_production_validation.root
+root [1] new TBrowser
+\end{shell}
+Find \texttt{h\_plane\_hit\_pdg} and \texttt{h\_plane\_hit\_momentum}, and
+compare them with your table. What does \texttt{h\_mc\_multiplicity} show?
+\end{exercise}
+
+\begin{solution}
+\texttt{h\_plane\_hit\_pdg} has peaks at $\pm 12$, $\pm 14$ (neutrinos) and
+$\pm 13$ (muons), with the same counts as the table. \texttt{h\_mc\_multiplicity}
+is the number of final-state generator particles per event, for the written
+events only.
+\end{solution}
+
+\begin{exercise}[colback=white]{Optional: the energy cut}
+Run again with \cmd{--tla-code ecut=1.0} and \cmd{--tla-str output=ft\_ecut1},
+and compare the muon tables. Which muons went missing, and does it matter for
+the background in the decay volume?
+\end{exercise}
+
+\begin{solution}
+The muons between 0.5 and 1\,GeV. They range out in the muon-shield iron long
+before the decay volume, so for the background they do not matter, and a
+higher cut only saves CPU time. That is the reasoning behind the cut.
+\end{solution}
+
+\begin{note}
+The production stage is where most CPU time goes, which is why SHiP produces
+it once, in large batches, and reuses the plane particles for many replays
+with different shield designs or detector settings. The plane particles of
+such a production are exactly what \file{ft\_replay.jsonnet} reads
+(\cref{ex:ownreplay}).
+\end{note}

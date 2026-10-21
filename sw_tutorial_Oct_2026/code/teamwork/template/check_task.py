@@ -7,8 +7,8 @@ Every task is tested with inputs made up here, from a toy Breit-Wigner sample
 whose answer is known (M = 50 GeV, Gamma = 4 GeV -- not the mystery particle).
 So you can test your task before your teammates have written theirs.
 
-    pixi run check-task 4           # test task 4  (= python check_task.py 4)
-    pixi run check                  # test every task, as CI does
+    pixi cvmfs check-task 4         # test task 4  (= python check_task.py 4)
+    pixi cvmfs check                # test every task, as CI does
 
 Exit status 0 means every requested task passed. Run it before you open your
 pull request, and paste its output into the pull-request description.
