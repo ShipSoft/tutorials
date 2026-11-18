@@ -1,0 +1,44 @@
+name: Booklet
+
+on:
+  pull_request:
+    paths:
+      - "sw_tutorial_Oct_2026/**"
+      - ".github/workflows/booklet.yml"
+  push:
+    branches: [main]
+    paths:
+      - "sw_tutorial_Oct_2026/**"
+      - ".github/workflows/booklet.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build the October 2026 booklet
+    runs-on: ubuntu-latest
+    # Full TeX Live, so the build sees the same packages as a local
+    # installation with scheme-full.
+    container: texlive/texlive:latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install make
+        run: command -v make || { apt-get update -qq && apt-get install -y -qq make; }
+
+      # The participant edition; the organiser edition's sources are not in
+      # this repository.
+      - name: Build
+        run: make -C sw_tutorial_Oct_2026
+
+      - name: Upload the booklet
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: booklet
+          path: |
+            sw_tutorial_Oct_2026/booklet.pdf
+            sw_tutorial_Oct_2026/booklet.log
+          if-no-files-found: ignore
