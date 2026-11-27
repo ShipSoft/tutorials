@@ -37,7 +37,7 @@ TOY_EVENTS = 20000
 _WRITER = r"""
 #include <ROOT/RNTupleModel.hxx>
 #include <ROOT/RNTupleWriter.hxx>
-#include <RVersion.h>
+#include <ROOT/RVersion.hxx>
 #include <memory>
 #include <string>
 #include <vector>
