@@ -20,12 +20,9 @@ geant4 = ">=11.3"
 # The SHiP geometry service converts a .db file to Geant4, as in aegir.
 shipgeometryservice = ">=0.6,<0.7"
 shipgeometry = "*"
-# Needed by the CMake configs of Geant4 (expat, zlib, freetype) and GeoModel
-# (eigen, nlohmann_json, mp-units), as in geometry_service/pixi.toml
+# Needed by the CMake configs of GeoModel (eigen, nlohmann_json, mp-units),
+# as in geometry_service/pixi.toml
 mp-units = "*"
-expat = "*"
-zlib = "*"
-freetype = "*"
 eigen = "*"
 eigen-abi-devel = "*"
 nlohmann_json = "*"
